@@ -276,7 +276,7 @@ function dividirTextoEmChunks(texto, tamanhoAprox = 800) {
 async function gerarEmbedding(texto) {
   try {
     const res = await gemini.models.embedContent({
-      model: 'text-embedding-004',
+      model: 'gemini-embedding-2',
       contents: texto
     })
     return res.embeddings[0].values

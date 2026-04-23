@@ -95,7 +95,7 @@ async function chamarLLM(loja, numeroCliente, mensagem, tipo, imgB64) {
   let model = config.llm_model || 'llama-3.3-70b-versatile'
 
   if (tipo === 'imagem') {
-    model = model.startsWith('gemini') ? 'gemini-1.5-flash' : 'llama-3.2-11b-vision-preview'
+    model = model.startsWith('gemini') ? 'gemini-2.5-flash' : 'llama-3.2-11b-vision-preview'
   }
 
   if (model.startsWith('gemini')) {

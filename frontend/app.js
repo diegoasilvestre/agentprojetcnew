@@ -1,6 +1,6 @@
 // Mr RobotyBR — Admin Panel SPA
 const API = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://chatbot20agent-agentprojetcnew.up.railway.app'
-const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'llama-3.2-11b-vision-preview', 'mixtral-8x7b-32768', 'gemma2-9b-it']
+const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'llama-3.2-11b-vision-preview', 'mixtral-8x7b-32768', 'gemma2-9b-it', 'gemini-1.5-flash', 'gemini-1.5-pro']
 let state = { lojas: [], lojaId: null, loja: null, page: 'dashboard' }
 let waPolling = null
 

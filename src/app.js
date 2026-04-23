@@ -156,44 +156,8 @@ app.post('/simulate', async (req, res) => {
     const loja = await getLojaPorId(loja_id)
     if (!loja) return res.status(404).json({ erro: 'Loja não encontrada' })
 
-    const produtos = await _getPrds(loja_id)
-    const historico = await getHistorico(loja_id, phone, 10)
-
-    const catalogo = produtos.length
-      ? produtos.map(p => `• ${p.nome}${p.sabor ? ' – ' + p.sabor : ''} | R$ ${Number(p.preco_venda || 0).toFixed(2).replace('.', ',')}${p.quantidade != null ? ` | ${p.quantidade} un.` : ''}`).join('\n')
-      : 'Nenhum produto cadastrado.'
-
-    const system = `${loja.prompt_base || `Você é atendente da "${loja.nome}".`}
-
-## Catálogo
-${catalogo}
-
-${loja.instrucoes_extras || ''}
-- Responda em português. Máximo 3 parágrafos.
-- Responda SOMENTE sobre produtos listados. Nunca invente.`.trim()
-
-    const messages = [
-      { role: 'system', content: system },
-      ...historico.map(h => ({ role: h.role, content: h.content })),
-      { role: 'user', content: text },
-    ]
-
-    // Use LLM config from loja if available
-    const llmModel = loja.llm_model || 'llama-3.3-70b-versatile'
-    const llmTemp = loja.llm_temperature != null ? loja.llm_temperature : 0.7
-    const llmMaxTokens = loja.llm_max_tokens || 512
-
-    const completion = await groq.chat.completions.create({
-      model: llmModel,
-      messages,
-      temperature: llmTemp,
-      max_tokens: llmMaxTokens,
-    })
-
-    const reply = completion.choices[0]?.message?.content
-      ?.replace(/PEDIDO_JSON:[\s\S]*?(\n|$)/, '').trim()
-      || 'Sem resposta'
-
+    const { responderAgente } = await import('./whatsapp.js')
+    const reply = await responderAgente(loja_id, phone, text)
     res.json({ reply })
   } catch (err) {
     console.error('[Simulate]', err.message)

@@ -14,13 +14,16 @@ import path from 'path'
 import fs from 'fs'
 import sharp from 'sharp'
 import Groq from 'groq-sdk'
+import { GoogleGenAI } from '@google/genai'
 import {
   getLojaPorWaId, getProdutosDaLoja,
   getHistorico, salvarMensagem, criarPedido,
+  getDadosParaRAG
 } from './database.js'
 
 const logger = pino({ level: 'silent' })
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY }) // fallback
 const BOOT_TIME = Math.floor(Date.now() / 1000)
 const delay = (ms) => new Promise(r => setTimeout(r, ms))
 
@@ -83,30 +86,62 @@ function extrairPedido(raw) {
   } catch { return { texto: raw.trim(), pedido: null } }
 }
 
-async function chamarGroq(loja, numeroCliente, mensagem, tipo, imgB64) {
+async function chamarLLM(loja, numeroCliente, mensagem, tipo, imgB64) {
   const [historico, system] = await Promise.all([
     getHistorico(loja.id, numeroCliente, 20),
     buildSystem(loja),
   ])
-  const messages = [
-    { role: 'system', content: system },
-    ...historico.map(h => ({ role: h.role, content: h.content })),
-  ]
-  if (tipo === 'imagem' && imgB64) {
-    messages.push({
-      role: 'user', content: [
-        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imgB64}` } },
-        { type: 'text', text: mensagem || 'O que é isso?' },
-      ]
-    })
-  } else {
-    messages.push({ role: 'user', content: mensagem })
-  }
-  const model = tipo === 'imagem' ? 'llama-3.2-11b-vision-preview' : (loja.llm_model || 'llama-3.3-70b-versatile')
+  
   const temp = loja.llm_temperature != null ? loja.llm_temperature : 0.7
   const maxTok = loja.llm_max_tokens || 1024
-  const res = await groq.chat.completions.create({ model, messages, temperature: temp, max_tokens: maxTok })
-  return extrairPedido(res.choices[0]?.message?.content || 'Oi! Tive uma instabilidade. Pode repetir? 😊')
+  let model = loja.llm_model || 'llama-3.3-70b-versatile'
+
+  if (tipo === 'imagem') {
+    model = model.startsWith('gemini') ? 'gemini-1.5-flash' : 'llama-3.2-11b-vision-preview'
+  }
+
+  if (model.startsWith('gemini')) {
+    const contents = historico.map(h => ({
+      role: h.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: h.content }]
+    }))
+    
+    const userParts = []
+    if (tipo === 'imagem' && imgB64) {
+      userParts.push({ inlineData: { mimeType: 'image/jpeg', data: imgB64 } })
+    }
+    userParts.push({ text: mensagem || 'Analise a imagem.' })
+    contents.push({ role: 'user', parts: userParts })
+
+    try {
+      const res = await gemini.models.generateContent({
+        model: model,
+        contents: contents,
+        config: { systemInstruction: system, temperature: temp, maxOutputTokens: maxTok }
+      })
+      return extrairPedido(res.text || 'Oi! Tive uma instabilidade. Pode repetir? 😊')
+    } catch (e) {
+      console.error('[Gemini Error]', e.message)
+      return extrairPedido('Oi! Tive uma instabilidade com o Google Gemini. Pode repetir? 😊')
+    }
+  } else {
+    const messages = [
+      { role: 'system', content: system },
+      ...historico.map(h => ({ role: h.role, content: h.content })),
+    ]
+    if (tipo === 'imagem' && imgB64) {
+      messages.push({
+        role: 'user', content: [
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imgB64}` } },
+          { type: 'text', text: mensagem || 'Analise a imagem.' },
+        ]
+      })
+    } else {
+      messages.push({ role: 'user', content: mensagem })
+    }
+    const res = await groq.chat.completions.create({ model, messages, temperature: temp, max_tokens: maxTok })
+    return extrairPedido(res.choices[0]?.message?.content || 'Oi! Tive uma instabilidade na Groq. Pode repetir? 😊')
+  }
 }
 
 // ── Instância por loja ────────────────────────────────────────────────────────
@@ -272,7 +307,7 @@ class WaInstance {
     await this.sock.sendPresenceUpdate('composing', jid)
     let resposta = '', pedido = null
     try {
-      const r = await chamarGroq(loja, numeroCliente, texto, tipo, imgB64)
+      const r = await chamarLLM(loja, numeroCliente, texto, tipo, imgB64)
       resposta = r.texto; pedido = r.pedido
     } catch (err) {
       console.error(`[WA][${this.lojaId}] Groq erro:`, err.message)
@@ -383,7 +418,7 @@ export async function responderAgente(loja_id, numeroCliente, texto) {
     if (!loja) throw new Error('Loja não encontrada');
 
     // 2. Chamar a lógica da Groq que já existe no whatsapp.js
-    const resultado = await chamarGroq(loja, numeroCliente, texto, 'texto', null);
+    const resultado = await chamarLLM(loja, numeroCliente, texto, 'texto', null);
 
     return resultado.texto; // Retorna apenas o texto da resposta
   } catch (err) {

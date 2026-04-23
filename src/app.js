@@ -92,7 +92,7 @@ app.get('/status', (_, res) => {
  * Body: { loja_id, numero }
  * Conecta uma loja via pairing code. Retorna o código de 8 letras.
  */
-app.post('/wa/connect', auth, async (req, res) => {
+app.post('/wa/connect', async (req, res) => {
   const { loja_id, numero } = req.body
   if (!loja_id || !numero) {
     return res.status(400).json({ erro: 'loja_id e numero são obrigatórios' })
@@ -109,7 +109,7 @@ app.post('/wa/connect', auth, async (req, res) => {
  * GET /wa/status/:lojaId
  * Estado atual de uma instância específica.
  */
-app.get('/wa/status/:lojaId', auth, (req, res) => {
+app.get('/wa/status/:lojaId', (req, res) => {
   res.json(instanceManager.stateOf(req.params.lojaId))
 })
 
@@ -118,7 +118,7 @@ app.get('/wa/status/:lojaId', auth, (req, res) => {
  * Desconecta e deleta a sessão da loja.
  * Body: { deletar_sessao: true } (opcional, default true)
  */
-app.post('/wa/disconnect/:lojaId', auth, async (req, res) => {
+app.post('/wa/disconnect/:lojaId', async (req, res) => {
   const { lojaId } = req.params
   const deletar = req.body?.deletar_sessao !== false
   try {
@@ -133,7 +133,7 @@ app.post('/wa/disconnect/:lojaId', auth, async (req, res) => {
  * GET /wa/instances
  * Lista todas as instâncias ativas e seus estados.
  */
-app.get('/wa/instances', auth, (_, res) => {
+app.get('/wa/instances', (_, res) => {
   res.json(instanceManager.allStates())
 })
 

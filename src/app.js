@@ -12,7 +12,10 @@ import fs from 'fs'
 import pdf from 'pdf-parse'
 import xlsx from 'xlsx'
 import { salvarDocumentoRAG } from './database.js'
+import axios from 'axios'
+import cheerio from 'cheerio'
 const upload = multer({ dest: 'uploads/' })
+fs.unlinkSync(file.path)
 import { listarDocumentosRAG, deletarDocumentoRAG } from './database.js'
 import {
   db,
@@ -352,7 +355,7 @@ app.delete('/cliente/rag/:id', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════════════════════════════════════
-app.listen(PORT, async () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Agents Intelligence API v3 — http://localhost:${PORT}`)
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   console.log('  POST /wa/connect       → conecta loja (pairing code)')
@@ -363,6 +366,8 @@ app.listen(PORT, async () => {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
   console.log("URL do Supabase carregada:", process.env.SUPABASE_URL ? "Sim ✅" : "Não ❌");
 
-  // Reconecta lojas com sessão salva no boot
-  await instanceManager.reconectarSessoes()
+  // roda em background (SEM travar servidor)
+  instanceManager.reconectarSessoes()
+    .then(() => console.log('Sessões reconectadas ✅'))
+    .catch(err => console.error('Erro ao reconectar sessões ❌', err))
 })

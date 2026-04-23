@@ -18,7 +18,7 @@ import { GoogleGenAI } from '@google/genai'
 import {
   getLojaPorWaId, getProdutosDaLoja,
   getHistorico, salvarMensagem, criarPedido,
-  getDadosParaRAG, buscarRAGRelevante
+  buscarRAGRelevante
 } from './database.js'
 
 const logger = pino({ level: 'silent' })
@@ -53,37 +53,23 @@ function dividirMensagem(texto, maxLen = 1000) {
 async function buildSystem(loja, conhecimentoExtra = '') {
   const produtos = await getProdutosDaLoja(loja.id)
 
-  // Monta catálogo de produtos cadastrados manualmente
   const catalogo = produtos.length
     ? produtos.map(p => `• ${p.nome} | R$ ${p.preco_venda}`).join('\n')
-    : ''
+    : 'Nenhum produto cadastrado.'
 
-  // Instrução base
-  let system = loja.prompt_base || `Você é um atendente virtual da ${loja.nome}. Atenda com simpatia e profissionalismo.`
+  return `${loja.prompt_base || `Você é atendente da ${loja.nome}`}
 
-  // BASE DE CONHECIMENTO (RAG) — tem prioridade máxima
-  if (conhecimentoExtra) {
-    system += `\n\n## BASE DE CONHECIMENTO\nUse APENAS as informações abaixo para responder. Não invente nada.\n\n${conhecimentoExtra}`
-  }
+## PRODUTOS
+${catalogo}
 
-  // Catálogo adicional de produtos (se existir)
-  if (catalogo) {
-    system += `\n\n## PRODUTOS CADASTRADOS\n${catalogo}`
-  }
+## CONHECIMENTO ADICIONAL
+${conhecimentoExtra}
 
-  // Se não tiver nem RAG nem produtos, avisa o agente
-  if (!conhecimentoExtra && !catalogo) {
-    system += `\n\n## AVISO\nAinda não há produtos ou conhecimento cadastrado para este cliente. Responda de forma genérica e peça para o cliente entrar em contato diretamente.`
-  }
+${loja.instrucoes_extras || ''}
 
-  // Instruções extras da loja
-  if (loja.instrucoes_extras) {
-    system += `\n\n## INSTRUÇÕES ADICIONAIS\n${loja.instrucoes_extras}`
-  }
-
-  system += `\n\n- Responda SEMPRE com base nas informações acima\n- NUNCA invente produtos, preços ou informações que não estejam no contexto`
-
-  return system
+- Responda apenas com base nos dados acima
+- Nunca invente informações
+`
 }
 
 function extrairPedido(raw) {
@@ -95,84 +81,79 @@ function extrairPedido(raw) {
 }
 
 async function chamarLLM(loja, numeroCliente, mensagem, tipo, imgB64) {
+  // 1. Busca RAG
   const ragChunks = await buscarRAGRelevante(loja.id, mensagem)
   const conhecimentoExtra = ragChunks.length
-    ? `## BASE DE CONHECIMENTO\n${ragChunks.map(c => c.conteudo).join('\n\n')}`
-    : ''
+    ? `## CONHECIMENTO DA BASE (RAG):\n${ragChunks.map(c => `[Info]: ${c.conteudo}`).join('\n\n')}`
+    : 'Nenhum conhecimento extra encontrado para esta pergunta.'
   
-  console.log(`[RAG] ${ragChunks.length} chunks encontrados para: "${mensagem?.substring(0,50)}"`)
+  console.log(`[RAG][${loja.nome}] ${ragChunks.length} chunks relevantes encontrados.`)
 
+  // 2. Histórico e System
   const [historico, system] = await Promise.all([
-    getHistorico(loja.id, numeroCliente, 20),
+    getHistorico(loja.id, numeroCliente, 15),
     buildSystem(loja, conhecimentoExtra),
   ])
   
   const config = loja.config || {}
-  const temp = config.llm_temperature != null ? config.llm_temperature : 0.7
-  const maxTok = config.llm_max_tokens || 1024
+  const temp = config.llm_temperature ?? 0.7
+  const maxTok = config.llm_max_tokens ?? 1024
   const modelPref = config.llm_model || 'llama-3.3-70b-versatile'
+
+  console.log(`[LLM][${loja.nome}] Usando modelo: ${modelPref}`)
 
   // === GEMINI PATH ===
   if (modelPref.startsWith('gemini')) {
-    const contents = historico.map(h => ({
-      role: h.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: h.content }]
-    }))
-    const userParts = []
-    if (tipo === 'imagem' && imgB64) {
-      userParts.push({ inlineData: { mimeType: 'image/jpeg', data: imgB64 } })
-    }
-    userParts.push({ text: mensagem || 'Analise a imagem.' })
-    contents.push({ role: 'user', parts: userParts })
-
     try {
+      const contents = historico.map(h => ({
+        role: h.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: h.content }]
+      }))
+      const userParts = []
+      if (tipo === 'imagem' && imgB64) {
+        userParts.push({ inlineData: { mimeType: 'image/jpeg', data: imgB64 } })
+      }
+      userParts.push({ text: mensagem || 'Analise a imagem e responda conforme as instruções.' })
+      contents.push({ role: 'user', parts: userParts })
+
       const res = await gemini.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: contents,
+        model: 'gemini-2.0-flash', // Forçando a versão mais estável e rápida
+        contents,
         config: { systemInstruction: system, temperature: temp, maxOutputTokens: maxTok }
       })
       return extrairPedido(res.text || '')
     } catch (e) {
-      console.error('[Gemini Error]', e.message)
-      // Fallback para Groq
-      console.log('[Fallback] Gemini falhou, tentando Groq...')
+      console.error(`[LLM][${loja.nome}] Gemini erro:`, e.message)
+      // Fallback para Groq se o Gemini falhar
     }
   }
 
-  // === GROQ PATH (default + fallback do Gemini) ===
+  // === GROQ PATH (Default ou Fallback) ===
   const groqModel = modelPref.startsWith('gemini') ? 'llama-3.3-70b-versatile' : modelPref
   const messages = [
     { role: 'system', content: system },
     ...historico.map(h => ({ role: h.role, content: h.content })),
   ]
+  
   if (tipo === 'imagem' && imgB64) {
-    // Groq vision model decommissioned, describe via text only
-    messages.push({ role: 'user', content: `[Imagem recebida] ${mensagem || 'O cliente enviou uma imagem.'}` })
+    // Nota: Groq vision é instável, descrevemos o fato da imagem por texto
+    messages.push({ role: 'user', content: `[O cliente enviou uma imagem] ${mensagem || 'O que você vê?'}` })
   } else {
     messages.push({ role: 'user', content: mensagem })
   }
   
   try {
-    const res = await groq.chat.completions.create({ model: groqModel, messages, temperature: temp, max_tokens: maxTok })
+    const res = await groq.chat.completions.create({
+      model: groqModel,
+      messages,
+      temperature: temp,
+      max_tokens: maxTok
+    })
     return extrairPedido(res.choices[0]?.message?.content || '')
-  } catch (groqErr) {
-    console.error('[Groq Error]', groqErr.message)
-    // Last resort fallback to Gemini
-    try {
-      const contents = [
-        ...historico.map(h => ({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.content }] })),
-        { role: 'user', parts: [{ text: mensagem }] }
-      ]
-      const res = await gemini.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents,
-        config: { systemInstruction: system, temperature: temp, maxOutputTokens: maxTok }
-      })
-      return extrairPedido(res.text || '')
-    } catch (gemErr) {
-      console.error('[Gemini Fallback Error]', gemErr.message)
-      return extrairPedido('Oi! Estou com instabilidade momentânea. Pode repetir sua pergunta? 😊')
-    }
+  } catch (err) {
+    console.error(`[LLM][${loja.nome}] Groq erro:`, err.message)
+    // Último recurso: Gemini básico sem instrução de sistema complexa se tudo falhar
+    return extrairPedido('Desculpe, tive um problema técnico momentâneo. Pode tentar novamente? 😊')
   }
 }
 

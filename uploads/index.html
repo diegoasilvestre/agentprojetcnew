@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WavePod - Painel Multi-Tenant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .glass { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans">
+
+    <nav class="bg-indigo-600 text-white p-4 shadow-lg mb-8">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold italic">WavePod 🚀</h1>
+            <div id="statusServer" class="text-xs bg-indigo-500 px-3 py-1 rounded-full text-indigo-100">Verificando Servidor...</div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-4 pb-20">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-semibold text-slate-700">Minhas Lojas</h2>
+            <button onclick="abrirModalLoja()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition">
+                + Nova Loja
+            </button>
+        </div>
+
+        <div id="listaLojas" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            </div>
+    </main>
+
+    <div id="modalPairing" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
+            <h3 class="text-xl font-bold mb-2">Conectar WhatsApp</h3>
+            <p class="text-slate-500 text-sm mb-6">Digite este código no seu celular em "Aparelhos Conectados"</p>
+            <div id="pairingDisplay" class="text-4xl font-mono font-black tracking-widest text-indigo-600 bg-indigo-50 p-6 rounded-xl border-2 border-dashed border-indigo-200 mb-6">
+                ----
+            </div>
+            <button onclick="fecharModal()" class="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-bold">Fechar</button>
+        </div>
+    </div>
+
+    <script>
+        // 🚨 CONFIGURAÇÃO: Coloque aqui sua URL do Railway
+        const API_URL = "https://chatbot20agent-agentprojetcnew.up.railway.app/"; 
+        
+        // Se você tiver o token do Supabase, coloque aqui. 
+        // Se desativou o 'auth' no backend, pode deixar em branco.
+        const TOKEN = ""; 
+
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${TOKEN}`
+        };
+
+        async function checkStatus() {
+            try {
+                const res = await fetch(`${API_URL}/status`);
+                const data = await res.json();
+                document.getElementById('statusServer').innerText = `Online: ${data.instancias.length} Instâncias`;
+                document.getElementById('statusServer').className = "text-xs bg-green-500 px-3 py-1 rounded-full text-white";
+            } catch (e) {
+                document.getElementById('statusServer').innerText = "Servidor Offline";
+                document.getElementById('statusServer').className = "text-xs bg-red-500 px-3 py-1 rounded-full text-white";
+            }
+        }
+
+        async function listarLojas() {
+            const grid = document.getElementById('listaLojas');
+            try {
+                const res = await fetch(`${API_URL}/admin/lojas`, { headers });
+                const lojas = await res.json();
+                
+                grid.innerHTML = lojas.map(loja => `
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="font-bold text-lg text-slate-800">${loja.nome}</h3>
+                                <p class="text-xs text-slate-400">ID: ${loja.id}</p>
+                            </div>
+                            <span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${loja.ativa ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'}">
+                                ${loja.ativa ? 'Ativa' : 'Inativa'}
+                            </span>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <button onclick="conectarLoja('${loja.id}', '${loja.wa_id}')" class="w-full py-2 bg-indigo-50 text-indigo-600 rounded-lg font-semibold hover:bg-indigo-100 transition">
+                                Conectar WhatsApp
+                            </button>
+                            <div class="flex gap-2">
+                                <button onclick="alert('Funcionalidade de produtos em breve!')" class="flex-1 py-2 border border-slate-100 text-slate-500 rounded-lg text-sm hover:bg-slate-50">Produtos</button>
+                                <button onclick="alert('Configurações em breve!')" class="p-2 border border-slate-100 text-slate-500 rounded-lg hover:bg-slate-50">⚙️</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                grid.innerHTML = `<p class="text-red-500">Erro ao carregar lojas: ${e.message}</p>`;
+            }
+        }
+
+        async function conectarLoja(lojaId, numero) {
+            try {
+                const res = await fetch(`${API_URL}/wa/connect`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ loja_id: lojaId, numero: numero })
+                });
+                const data = await res.json();
+                
+                if (data.pairingCode) {
+                    document.getElementById('pairingDisplay').innerText = data.pairingCode;
+                    document.getElementById('modalPairing').classList.remove('hidden');
+                } else if (data.status === 'conectado') {
+                    alert("Esta loja já está conectada!");
+                }
+            } catch (e) {
+                alert("Erro ao conectar: " + e.message);
+            }
+        }
+
+        function fecharModal() {
+            document.getElementById('modalPairing').classList.add('hidden');
+        }
+
+        // Inicialização
+        checkStatus();
+        listarLojas();
+        setInterval(checkStatus, 10000);
+
+    </script>
+</body>
+</html>

@@ -20,7 +20,7 @@ import {
 } from './database.js'
 
 const logger = pino({ level: 'silent' })
-const groq   = new Groq({ apiKey: process.env.GROQ_API_KEY })
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 const BOOT_TIME = Math.floor(Date.now() / 1000)
 const delay = (ms) => new Promise(r => setTimeout(r, ms))
 
@@ -93,15 +93,19 @@ async function chamarGroq(loja, numeroCliente, mensagem, tipo, imgB64) {
     ...historico.map(h => ({ role: h.role, content: h.content })),
   ]
   if (tipo === 'imagem' && imgB64) {
-    messages.push({ role: 'user', content: [
-      { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imgB64}` } },
-      { type: 'text', text: mensagem || 'O que é isso?' },
-    ]})
+    messages.push({
+      role: 'user', content: [
+        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imgB64}` } },
+        { type: 'text', text: mensagem || 'O que é isso?' },
+      ]
+    })
   } else {
     messages.push({ role: 'user', content: mensagem })
   }
-  const model = tipo === 'imagem' ? 'llama-3.2-11b-vision-preview' : 'llama-3.3-70b-versatile'
-  const res = await groq.chat.completions.create({ model, messages, temperature: 0.7, max_tokens: 1024 })
+  const model = tipo === 'imagem' ? 'llama-3.2-11b-vision-preview' : (loja.llm_model || 'llama-3.3-70b-versatile')
+  const temp = loja.llm_temperature != null ? loja.llm_temperature : 0.7
+  const maxTok = loja.llm_max_tokens || 1024
+  const res = await groq.chat.completions.create({ model, messages, temperature: temp, max_tokens: maxTok })
   return extrairPedido(res.choices[0]?.message?.content || 'Oi! Tive uma instabilidade. Pode repetir? 😊')
 }
 
@@ -109,21 +113,23 @@ async function chamarGroq(loja, numeroCliente, mensagem, tipo, imgB64) {
 class WaInstance {
   constructor(lojaId) {
     this.lojaId = lojaId
-    this.sock   = null
+    this.sock = null
     this.status = 'aguardando'
     this.pairingCode = null
     this.numero = null
-    this.erro   = null
+    this.erro = null
     this.tentativas = 0
     this._pairingSolicitado = false
-    this._filas  = new Map()
-    this._ids    = new Set()
-    this._rate   = []
+    this._filas = new Map()
+    this._ids = new Set()
+    this._rate = []
   }
 
   state() {
-    return { lojaId: this.lojaId, status: this.status,
-             pairingCode: this.pairingCode, numero: this.numero, erro: this.erro }
+    return {
+      lojaId: this.lojaId, status: this.status,
+      pairingCode: this.pairingCode, numero: this.numero, erro: this.erro
+    }
   }
 
   _enfileirar(jid, fn) {
@@ -150,7 +156,7 @@ class WaInstance {
   async conectar(numero = null) {
     const { state, saveCreds } = await useMultiFileAuthState(authDir(this.lojaId))
     let version = [2, 3000, 1015901307]
-    try { const r = await fetchLatestBaileysVersion(); if (r?.version) version = r.version } catch {}
+    try { const r = await fetchLatestBaileysVersion(); if (r?.version) version = r.version } catch { }
 
     this._pairingSolicitado = false
     this.sock = makeWASocket({
@@ -183,11 +189,11 @@ class WaInstance {
       }
 
       if (connection === 'open') {
-        this.tentativas  = 0
-        this.status      = 'conectado'
-        this.numero      = normalizarNumero(this.sock.user?.id || '')
+        this.tentativas = 0
+        this.status = 'conectado'
+        this.numero = normalizarNumero(this.sock.user?.id || '')
         this.pairingCode = null
-        this.erro        = null
+        this.erro = null
         console.log(`[WA][${this.lojaId}] ✅ Conectado! Número: ${this.numero}`)
       }
 
@@ -199,7 +205,7 @@ class WaInstance {
         if (reconectar) {
           this.tentativas++
           const t = Math.min(5000 * this.tentativas, 30000) + Math.random() * 2000
-          console.log(`[WA][${this.lojaId}] Reconectando em ${(t/1000).toFixed(1)}s...`)
+          console.log(`[WA][${this.lojaId}] Reconectando em ${(t / 1000).toFixed(1)}s...`)
           setTimeout(() => this.conectar(null), t)
         } else {
           this.status = 'erro'
@@ -230,22 +236,22 @@ class WaInstance {
   }
 
   async _processar(msg) {
-    const jid           = msg.key.remoteJid
+    const jid = msg.key.remoteJid
     const numeroCliente = normalizarNumero(jid)
-    const nomeCliente   = msg.pushName || numeroCliente
-    const mc            = msg.message
+    const nomeCliente = msg.pushName || numeroCliente
+    const mc = msg.message
 
     let tipo = 'texto', texto = '', imgB64 = null
 
-    if (mc?.conversation)               texto = mc.conversation
+    if (mc?.conversation) texto = mc.conversation
     else if (mc?.extendedTextMessage?.text) texto = mc.extendedTextMessage.text
     else if (mc?.imageMessage) {
-      tipo  = 'imagem'
+      tipo = 'imagem'
       texto = mc.imageMessage.caption || 'O cliente enviou uma imagem.'
       try {
         const buf = await downloadMediaMessage(msg, 'buffer', {})
-        if (buf) imgB64 = (await sharp(buf).resize(1024,1024,{fit:'inside',withoutEnlargement:true}).jpeg({quality:80}).toBuffer()).toString('base64')
-      } catch {}
+        if (buf) imgB64 = (await sharp(buf).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer()).toString('base64')
+      } catch { }
     } else if (mc?.audioMessage || mc?.pttMessage) {
       tipo = 'audio'; texto = '[O cliente enviou um áudio]'
     } else if (mc?.stickerMessage || mc?.reactionMessage || mc?.protocolMessage) {
@@ -258,7 +264,7 @@ class WaInstance {
     const loja = await getLojaPorWaId(meuNumero)
     if (!loja) { console.warn(`[WA][${this.lojaId}] Loja não encontrada para ${meuNumero}`); return }
 
-    try { await this.sock.readMessages([msg.key]) } catch {}
+    try { await this.sock.readMessages([msg.key]) } catch { }
     await delay(1200 + Math.random() * 2000)
 
     await salvarMensagem({ lojaId: loja.id, numeroCliente, nomeCliente, role: 'user', content: texto, tipo })
@@ -301,7 +307,7 @@ class WaInstance {
   }
 
   async desconectar(deletarSessao = true) {
-    try { if (this.sock) { await this.sock.logout().catch(() => {}); this.sock = null } } catch {}
+    try { if (this.sock) { await this.sock.logout().catch(() => { }); this.sock = null } } catch { }
     if (deletarSessao) {
       const dir = path.join(process.cwd(), 'auth', `session_${this.lojaId}`)
       if (fs.existsSync(dir)) { fs.rmSync(dir, { recursive: true, force: true }); console.log(`[WA] 🗑 Sessão deletada: ${dir}`) }
@@ -349,7 +355,7 @@ class Manager {
     return this._map.get(lojaId)?.state() ?? { lojaId, status: 'aguardando', pairingCode: null, numero: null, erro: null }
   }
 
-  
+
   /** Reconecta no boot todas as sessões salvas */
   async reconectarSessoes() {
     const base = path.join(process.cwd(), 'auth')
@@ -373,12 +379,12 @@ export async function responderAgente(loja_id, numeroCliente, texto) {
     // 1. Procurar a loja no banco para pegar o prompt
     const { getLojaPorId } = await import('./database.js');
     const loja = await getLojaPorId(loja_id);
-    
+
     if (!loja) throw new Error('Loja não encontrada');
 
     // 2. Chamar a lógica da Groq que já existe no whatsapp.js
     const resultado = await chamarGroq(loja, numeroCliente, texto, 'texto', null);
-    
+
     return resultado.texto; // Retorna apenas o texto da resposta
   } catch (err) {
     console.error("[whatsapp.js] Erro em responderAgente:", err.message);

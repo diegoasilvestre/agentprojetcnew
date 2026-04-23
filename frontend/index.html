@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mr RobotyBR — Painel de Gestao</title>
+  <meta name="description" content="Painel administrativo Mr RobotyBR">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-name">Mr RobotyBR</div>
+        <div class="brand-sub">Management Portal</div>
+      </div>
+
+      <div class="sidebar-loja">
+        <label>Cliente / Loja Ativa</label>
+        <select id="lojaSelect" onchange="onLojaChange()"></select>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Visao Geral</div>
+          <a class="nav-item active" data-page="dashboard" href="#" onclick="navigate('dashboard');return false;">
+            <span class="icon">&#x1F4CA;</span> Dashboard
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Operacao</div>
+          <a class="nav-item" data-page="agente" href="#" onclick="navigate('agente');return false;">
+            <span class="icon">&#x1F9E0;</span> Agente &amp; Prompt
+          </a>
+          <a class="nav-item" data-page="rag" href="#" onclick="navigate('rag');return false;">
+            <span class="icon">&#x1F4DA;</span> Base de Conhecimento
+          </a>
+          <a class="nav-item" data-page="conversas" href="#" onclick="navigate('conversas');return false;">
+            <span class="icon">&#x1F4AC;</span> Conversas
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">WhatsApp</div>
+          <a class="nav-item" data-page="whatsapp" href="#" onclick="navigate('whatsapp');return false;">
+            <span class="icon">&#x1F4F1;</span> Conexao
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Configuracao</div>
+          <a class="nav-item" data-page="clientes" href="#" onclick="navigate('clientes');return false;">
+            <span class="icon">&#x1F465;</span> Gerenciar Clientes
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="server-status">
+          <span class="status-dot" id="serverDot"></span>
+          <span id="serverStatusText">Verificando servidor...</span>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <header class="topbar">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button class="hamburger" onclick="toggleSidebar()">&#x2630;</button>
+          <h1 id="pageTitle">Dashboard</h1>
+        </div>
+        <span id="lojaNameTopbar" style="font-size:12px;color:var(--text-secondary)"></span>
+      </header>
+      <div class="page-content" id="pageContent">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modalContent"></div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

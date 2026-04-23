@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Painel do Cliente</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-100 min-h-screen p-6">
+
+<div class="max-w-4xl mx-auto">
+
+    <!-- LOGIN -->
+    <div id="loginBox" class="bg-white p-6 rounded-xl shadow mb-6">
+        <h2 class="text-xl font-bold mb-4">Login Cliente</h2>
+
+        <input id="loja_id" placeholder="ID da loja" class="border p-2 w-full mb-2">
+        <input id="senha" type="password" placeholder="Senha" class="border p-2 w-full mb-3">
+
+        <button onclick="login()" class="bg-indigo-600 text-white px-4 py-2 rounded w-full">
+            Entrar
+        </button>
+    </div>
+
+    <!-- PAINEL -->
+    <div id="painel" class="hidden">
+
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-2xl font-bold">Base de Conhecimento (RAG)</h2>
+            <button onclick="logout()" class="text-red-500">Sair</button>
+        </div>
+
+        <!-- UPLOAD -->
+        <div class="bg-white p-4 rounded-xl shadow mb-4">
+            <h3 class="font-bold mb-2">Upload de Arquivo</h3>
+
+            <input type="file" id="file" class="mb-2">
+            <button onclick="upload()" class="bg-green-600 text-white px-3 py-2 rounded">
+                Enviar Arquivo
+            </button>
+        </div>
+
+        <!-- IMPORTAR LINK -->
+        <div class="bg-white p-4 rounded-xl shadow mb-4">
+            <h3 class="font-bold mb-2">Importar Link</h3>
+
+            <input id="link" placeholder="https://site.com" class="border p-2 w-full mb-2">
+            <button onclick="importar()" class="bg-blue-600 text-white px-3 py-2 rounded">
+                Importar
+            </button>
+        </div>
+
+        <!-- LISTA -->
+        <div class="bg-white p-4 rounded-xl shadow">
+            <h3 class="font-bold mb-3">Documentos</h3>
+            <div id="lista"></div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+
+const API = "https://agentprojetcnew.railway.internal"; // 🔥 TROCAR
+let TOKEN = ""
+let LOJA_ID = ""
+
+async function login() {
+    LOJA_ID = document.getElementById('loja_id').value
+
+    const res = await fetch(`${API}/cliente/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            loja_id: LOJA_ID,
+            senha: document.getElementById('senha').value
+        })
+    })
+
+    const data = await res.json()
+
+    if (!data.token) {
+        alert("Erro no login")
+        return
+    }
+
+    TOKEN = data.token
+
+    document.getElementById('loginBox').classList.add('hidden')
+    document.getElementById('painel').classList.remove('hidden')
+
+    carregarDocs()
+}
+
+function logout() {
+    TOKEN = ""
+    location.reload()
+}
+
+async function upload() {
+    const f = document.getElementById('file').files[0]
+
+    if (!f) return alert("Selecione um arquivo")
+
+    const fd = new FormData()
+    fd.append('file', f)
+    fd.append('loja_id', LOJA_ID)
+
+    await fetch(`${API}/cliente/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${TOKEN}` },
+        body: fd
+    })
+
+    alert("Arquivo enviado!")
+    carregarDocs()
+}
+
+async function importar() {
+    const url = document.getElementById('link').value
+
+    if (!url) return alert("Digite um link")
+
+    await fetch(`${API}/cliente/importar-link`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${TOKEN}`
+        },
+        body: JSON.stringify({
+            loja_id: LOJA_ID,
+            url
+        })
+    })
+
+    alert("Link importado!")
+    carregarDocs()
+}
+
+async function carregarDocs() {
+    const res = await fetch(`${API}/cliente/rag/${LOJA_ID}`)
+    const docs = await res.json()
+
+    const lista = document.getElementById('lista')
+
+    lista.innerHTML = docs.map(d => `
+        <div class="border p-3 mb-2 rounded flex justify-between">
+            <div>
+                <strong>${d.titulo}</strong><br>
+                <span class="text-xs text-gray-500">${d.tipo}</span>
+            </div>
+
+            <button onclick="deletar('${d.id}')" class="text-red-500">
+                Deletar
+            </button>
+        </div>
+    `).join('')
+}
+
+async function deletar(id) {
+    await fetch(`${API}/cliente/rag/${id}`, {
+        method: 'DELETE'
+    })
+
+    carregarDocs()
+}
+
+</script>
+
+</body>
+</html>

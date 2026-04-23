@@ -20,24 +20,24 @@ const upload = multer({ dest: 'uploads/' })
 import { listarDocumentosRAG, deletarDocumentoRAG } from './database.js'
 import {
   db,
-  listarLojas, 
-  getLojaPorId, 
-  criarLoja, 
+  listarLojas,
+  getLojaPorId,
+  criarLoja,
   atualizarLoja,
-  getProdutosDaLoja, 
-  criarProduto, 
+  getProdutosDaLoja,
+  criarProduto,
   atualizarProduto,
-  listarPedidos, 
+  listarPedidos,
   atualizarPedido,
-  listarContatos, 
-  getConversa, 
-  deletarConversa, 
+  listarContatos,
+  getConversa,
+  deletarConversa,
   contagemMensagensHoje,
   getStats
-} 
-from './database.js'; // Removi o responderAgente daqui, ele não pertence ao banco.
+}
+  from './database.js'; // Removi o responderAgente daqui, ele não pertence ao banco.
 import { instanceManager, responderAgente } from './whatsapp.js'; // Centralizei tudo do Zap aqui.
-const app  = express()
+const app = express()
 const PORT = process.env.PORT || 3000
 
 // ── Groq para /simulate ───────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ app.get('/wa/instances', (_, res) => {
 })
 
 // ── Simulate — testa o agente sem WhatsApp ────────────────────────────────────
-app.post('/simulate', auth, async (req, res) => {
+app.post('/simulate', async (req, res) => {
   const { phone, text, loja_id } = req.body
   if (!phone || !text || !loja_id) {
     return res.status(400).json({ erro: 'phone, text e loja_id são obrigatórios' })
@@ -178,11 +178,16 @@ ${loja.instrucoes_extras || ''}
       { role: 'user', content: text },
     ]
 
+    // Use LLM config from loja if available
+    const llmModel = loja.llm_model || 'llama-3.3-70b-versatile'
+    const llmTemp = loja.llm_temperature != null ? loja.llm_temperature : 0.7
+    const llmMaxTokens = loja.llm_max_tokens || 512
+
     const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: llmModel,
       messages,
-      temperature: 0.7,
-      max_tokens: 512,
+      temperature: llmTemp,
+      max_tokens: llmMaxTokens,
     })
 
     const reply = completion.choices[0]?.message?.content
@@ -201,6 +206,14 @@ app.get('/admin/lojas', async (_, res) => {
   res.json(await listarLojas())
 })
 
+app.get('/admin/lojas/:id', async (req, res) => {
+  try {
+    const loja = await getLojaPorId(req.params.id)
+    if (!loja) return res.status(404).json({ erro: 'Loja não encontrada' })
+    res.json(loja)
+  } catch (err) { res.status(500).json({ erro: err.message }) }
+})
+
 app.post('/admin/lojas', async (req, res) => {
   const { nome, wa_id, prompt_base, instrucoes_extras } = req.body
   if (!nome || !wa_id) return res.status(400).json({ erro: 'nome e wa_id são obrigatórios' })
@@ -210,7 +223,7 @@ app.post('/admin/lojas', async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }) }
 })
 
-app.patch('/admin/lojas/:id', auth, async (req, res) => {
+app.patch('/admin/lojas/:id', async (req, res) => {
   try {
     const loja = await atualizarLoja(req.params.id, req.body)
     res.json(loja)
@@ -218,18 +231,18 @@ app.patch('/admin/lojas/:id', auth, async (req, res) => {
 })
 
 // Stats de uma loja
-app.get('/admin/lojas/:id/stats', auth, async (req, res) => {
+app.get('/admin/lojas/:id/stats', async (req, res) => {
   res.json(await getStats(req.params.id))
 })
 
 // ── Produtos ──────────────────────────────────────────────────────────────────
-app.get('/admin/produtos', auth, async (req, res) => {
+app.get('/admin/produtos', async (req, res) => {
   const { loja_id } = req.query
   if (!loja_id) return res.status(400).json({ erro: 'loja_id obrigatório' })
   res.json(await getProdutosDaLoja(loja_id))
 })
 
-app.post('/admin/produtos', auth, async (req, res) => {
+app.post('/admin/produtos', async (req, res) => {
   const { loja_id, nome } = req.body
   if (!loja_id || !nome) return res.status(400).json({ erro: 'loja_id e nome são obrigatórios' })
   try {
@@ -238,7 +251,7 @@ app.post('/admin/produtos', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }) }
 })
 
-app.patch('/admin/produtos/:id', auth, async (req, res) => {
+app.patch('/admin/produtos/:id', async (req, res) => {
   try {
     const prod = await atualizarProduto(req.params.id, req.body)
     res.json(prod)
@@ -246,13 +259,13 @@ app.patch('/admin/produtos/:id', auth, async (req, res) => {
 })
 
 // ── Pedidos ───────────────────────────────────────────────────────────────────
-app.get('/admin/pedidos', auth, async (req, res) => {
+app.get('/admin/pedidos', async (req, res) => {
   const { loja_id, status } = req.query
   if (!loja_id) return res.status(400).json({ erro: 'loja_id obrigatório' })
   res.json(await listarPedidos(loja_id, status || null))
 })
 
-app.patch('/admin/pedidos/:id', auth, async (req, res) => {
+app.patch('/admin/pedidos/:id', async (req, res) => {
   try {
     const ped = await atualizarPedido(req.params.id, req.body)
     res.json(ped)
@@ -260,16 +273,16 @@ app.patch('/admin/pedidos/:id', auth, async (req, res) => {
 })
 
 // ── Conversas ─────────────────────────────────────────────────────────────────
-app.get('/admin/conversas/:lojaId/contatos', auth, async (req, res) => {
+app.get('/admin/conversas/:lojaId/contatos', async (req, res) => {
   res.json(await listarContatos(req.params.lojaId))
 })
 
-app.get('/admin/conversas/:lojaId/stats/hoje', auth, async (req, res) => {
+app.get('/admin/conversas/:lojaId/stats/hoje', async (req, res) => {
   const total = await contagemMensagensHoje(req.params.lojaId)
   res.json({ total })
 })
 
-app.get('/admin/conversas/:lojaId/recentes', auth, async (req, res) => {
+app.get('/admin/conversas/:lojaId/recentes', async (req, res) => {
   const { data } = await db
     .from('conversas')
     .select('role, content, numero_cliente, nome_cliente, created_at')
@@ -279,11 +292,11 @@ app.get('/admin/conversas/:lojaId/recentes', auth, async (req, res) => {
   res.json((data || []).reverse())
 })
 
-app.get('/admin/conversas/:lojaId/:numero', auth, async (req, res) => {
+app.get('/admin/conversas/:lojaId/:numero', async (req, res) => {
   res.json(await getConversa(req.params.lojaId, req.params.numero))
 })
 
-app.delete('/admin/conversas/:lojaId/:numero', auth, async (req, res) => {
+app.delete('/admin/conversas/:lojaId/:numero', async (req, res) => {
   await deletarConversa(req.params.lojaId, req.params.numero)
   res.json({ ok: true })
 })
@@ -307,7 +320,7 @@ app.post('/cliente/upload', upload.single('file'), async (req, res) => {
       const wb = xlsx.readFile(file.path)
       conteudo = JSON.stringify(wb.Sheets)
     }
-// 👉 remove o arquivo TEMPORÁRIO AQUI
+    // 👉 remove o arquivo TEMPORÁRIO AQUI
     fs.unlinkSync(file.path)
 
     await salvarDocumentoRAG({
@@ -334,7 +347,7 @@ app.post('/cliente/importar-link', async (req, res) => {
 
     await salvarDocumentoRAG({
       loja_id,
-      tipo: 'link',
+      tipo: 'arquivo',
       titulo: url,
       conteudo: texto,
       fonte: url

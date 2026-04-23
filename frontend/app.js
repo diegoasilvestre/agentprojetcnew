@@ -133,26 +133,63 @@ async function testarAgente() {
 async function renderRAG() {
   var c = document.getElementById('pageContent')
   if (!state.lojaId) { c.innerHTML = noLojaMsg(); return }
-  c.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">' +
-    '<div><div class="card"><div class="card-title" style="margin-bottom:16px">Upload de Arquivo</div>' +
+  c.innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">' +
+    // Coluna esquerda: 3 formas de adicionar conteúdo
+    '<div style="display:flex;flex-direction:column;gap:16px">' +
+
+    // Card 1: Colar texto diretamente
+    '<div class="card"><div class="card-title" style="margin-bottom:12px">✏️ Colar Texto / Conhecimento</div>' +
+    '<div class="form-group"><label class="form-label">Título</label><input class="form-input" id="ragTxtTitulo" placeholder="Ex: Catálogo de Produtos WavePod"></div>' +
+    '<div class="form-group"><label class="form-label">Conteúdo (cole os dados do cliente aqui)</label><textarea class="form-textarea" id="ragTxtConteudo" style="min-height:140px" placeholder="Cole aqui a lista de produtos, preços, horários, políticas... Tudo que o agente precisa saber."></textarea></div>' +
+    '<button class="btn btn-primary" id="btnSalvarTexto" onclick="salvarTextoRAG()">💾 Salvar Conhecimento</button></div>' +
+
+    // Card 2: Upload de arquivo
+    '<div class="card"><div class="card-title" style="margin-bottom:12px">📁 Upload de Arquivo</div>' +
     '<div class="upload-zone" id="uploadZone" onclick="document.getElementById(\'ragFile\').click()">' +
-    '<div style="font-size:32px;margin-bottom:8px">&#x1F4C1;</div>' +
-    '<p style="font-weight:600">Clique ou arraste o arquivo aqui</p>' +
-    '<p style="font-size:12px;color:var(--text-muted);margin-top:4px">PDF, XLSX suportados</p>' +
+    '<div style="font-size:28px;margin-bottom:6px">📄</div>' +
+    '<p style="font-weight:600;margin:0">Clique para selecionar</p>' +
+    '<p style="font-size:11px;color:var(--text-muted);margin-top:4px">PDF ou XLSX</p>' +
     '<input type="file" id="ragFile" accept=".pdf,.xlsx,.xls" style="display:none" onchange="uploadRAG()">' +
     '</div></div>' +
-    '<div class="card"><div class="card-title" style="margin-bottom:16px">Importar Link</div>' +
-    '<div class="form-group"><label class="form-label">URL do Site</label><input class="form-input" id="ragLink" placeholder="https://seusite.com.br/pagina"></div>' +
-    '<button class="btn btn-primary" onclick="importarLink()">Importar Conteudo</button></div></div>' +
-    '<div class="card" style="height:fit-content"><div class="card-header"><span class="card-title">Documentos Carregados</span><button class="btn btn-secondary btn-sm" onclick="renderRAG()">Atualizar</button></div><div id="ragList"><div class="spinner"></div></div></div></div>'
+
+    // Card 3: Importar link (com Jina Reader — funciona com sites JS)
+    '<div class="card"><div class="card-title" style="margin-bottom:12px">🌐 Importar URL Pública</div>' +
+    '<p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Funciona com sites feitos em React, Vue, Angular etc.</p>' +
+    '<div class="form-group"><label class="form-label">URL do Site</label><input class="form-input" id="ragLink" placeholder="https://seusite.com.br/produtos"></div>' +
+    '<button class="btn btn-primary" id="btnImportar" onclick="importarLink()">🔗 Importar Conteúdo</button></div>' +
+
+    '</div>' + // fim coluna esquerda
+
+    // Coluna direita: lista de documentos
+    '<div class="card" style="height:fit-content">' +
+    '<div class="card-header"><span class="card-title">📚 Base de Conhecimento</span><button class="btn btn-secondary btn-sm" onclick="loadRAGDocs()">↺ Atualizar</button></div>' +
+    '<div id="ragList"><div class="spinner"></div></div>' +
+    '</div>' +
+    '</div>'
+
   loadRAGDocs()
 }
 async function loadRAGDocs() {
   try {
     var docs = await api.get('/cliente/rag/' + state.lojaId); var el = document.getElementById('ragList')
-    if (!docs.length) { el.innerHTML = '<div class="empty-state"><p>Nenhum documento carregado</p></div>'; return }
-    el.innerHTML = docs.map(function (d) { return '<div class="doc-item"><div style="display:flex;align-items:center;flex:1;min-width:0"><span class="doc-icon">' + (d.tipo === 'arquivo' ? '&#x1F4C4;' : '&#x1F517;') + '</span><div style="min-width:0"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + d.titulo + '</div><div style="font-size:11px;color:var(--text-muted)">' + d.tipo + '</div></div></div><button class="btn btn-danger btn-sm" onclick="deletarDoc(\'' + d.id + '\')">Remover</button></div>' }).join('')
-  } catch (e) { document.getElementById('ragList').innerHTML = '<p style="color:var(--text-muted);padding:16px">Erro ao carregar</p>' }
+    if (!docs.length) { el.innerHTML = '<div class="empty-state"><p>Nenhum documento carregado</p><p style="font-size:12px;color:var(--text-muted)">Use uma das opções ao lado para adicionar conhecimento ao agente.</p></div>'; return }
+    el.innerHTML = docs.map(function (d) { return '<div class="doc-item"><div style="display:flex;align-items:center;flex:1;min-width:0"><span class="doc-icon">' + (d.tipo === 'link' ? '🌐' : d.tipo === 'texto' ? '✏️' : '📄') + '</span><div style="min-width:0"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + d.titulo + '</div><div style="font-size:11px;color:var(--text-muted)">' + new Date(d.criado_em).toLocaleString('pt-BR') + '</div></div></div><button class="btn btn-danger btn-sm" onclick="deletarDoc(\'' + d.id + '\')">&times;</button></div>' }).join('')
+  } catch (e) { el.innerHTML = '<p style="color:var(--text-muted);padding:16px">Erro ao carregar</p>' }
+}
+async function salvarTextoRAG() {
+  var titulo = document.getElementById('ragTxtTitulo').value.trim()
+  var conteudo = document.getElementById('ragTxtConteudo').value.trim()
+  if (!titulo || !conteudo) { toast('Preencha o título e o conteúdo', 'error'); return }
+  var btn = document.getElementById('btnSalvarTexto'); btn.textContent = 'Salvando...'; btn.disabled = true
+  try {
+    await api.post('/cliente/importar-texto', { titulo: titulo, conteudo: conteudo, loja_id: state.lojaId })
+    toast('Conhecimento salvo! O agente já pode usar essas informações.')
+    document.getElementById('ragTxtTitulo').value = ''
+    document.getElementById('ragTxtConteudo').value = ''
+    loadRAGDocs()
+  } catch (err) { toast(err.message, 'error') }
+  finally { btn.textContent = '💾 Salvar Conhecimento'; btn.disabled = false }
 }
 async function uploadRAG() {
   var file = document.getElementById('ragFile').files[0]; if (!file) return
@@ -161,8 +198,14 @@ async function uploadRAG() {
 }
 async function importarLink() {
   var url = document.getElementById('ragLink').value.trim(); if (!url) { toast('Digite uma URL', 'error'); return }
-  try { await api.post('/cliente/importar-link', { url: url, loja_id: state.lojaId }); toast('Link importado!'); document.getElementById('ragLink').value = ''; loadRAGDocs() }
-  catch (err) { toast(err.message, 'error') }
+  var btn = document.getElementById('btnImportar'); btn.textContent = '⏳ Importando...'; btn.disabled = true
+  try {
+    var r = await api.post('/cliente/importar-link', { url: url, loja_id: state.lojaId })
+    toast('Link importado! (' + (r.chars || '?') + ' caracteres extraídos)')
+    document.getElementById('ragLink').value = ''
+    loadRAGDocs()
+  } catch (err) { toast(err.message, 'error') }
+  finally { btn.textContent = '🔗 Importar Conteúdo'; btn.disabled = false }
 }
 async function deletarDoc(id) {
   if (!confirm('Remover este documento?')) return

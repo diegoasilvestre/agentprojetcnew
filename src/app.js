@@ -304,10 +304,19 @@ app.post('/cliente/importar-link', async (req, res) => {
   try {
     const { url, loja_id } = req.body
 
-    const html = await axios.get(url)
-    const $ = cheerio.load(html.data)
+    // Usa Jina AI Reader para renderizar JS antes de extrair o texto
+    // Suporta qualquer site, mesmo os feitos com React/Vue/Angular
+    const jinaUrl = 'https://r.jina.ai/' + url
+    const response = await axios.get(jinaUrl, {
+      headers: { 'Accept': 'text/plain', 'X-Return-Format': 'text' },
+      timeout: 30000
+    })
+    
+    const texto = response.data
 
-    const texto = $('body').text().replace(/\s+/g, ' ')
+    if (!texto || texto.length < 50) {
+      return res.status(400).json({ erro: 'Não foi possível extrair conteúdo da URL.' })
+    }
 
     await salvarDocumentoRAG({
       loja_id,
@@ -317,6 +326,19 @@ app.post('/cliente/importar-link', async (req, res) => {
       fonte: url
     })
 
+    res.json({ ok: true, chars: texto.length })
+  } catch (err) {
+    res.status(500).json({ erro: err.message })
+  }
+})
+
+app.post('/cliente/importar-texto', async (req, res) => {
+  try {
+    const { titulo, conteudo, loja_id } = req.body
+    if (!titulo || !conteudo || !loja_id) {
+      return res.status(400).json({ erro: 'titulo, conteudo e loja_id são obrigatórios' })
+    }
+    await salvarDocumentoRAG({ loja_id, tipo: 'texto', titulo, conteudo, fonte: 'manual' })
     res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ erro: err.message })

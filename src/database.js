@@ -327,8 +327,8 @@ export async function buscarRAGRelevante(lojaId, pergunta) {
   
   const { data, error } = await db.rpc('match_rag_chunks', {
     query_embedding: embedding,
-    match_threshold: 0.3,
-    match_count: 5,
+    match_threshold: 0.1,
+    match_count: 8,
     p_loja_id: lojaId
   })
   

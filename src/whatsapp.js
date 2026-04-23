@@ -53,23 +53,37 @@ function dividirMensagem(texto, maxLen = 1000) {
 async function buildSystem(loja, conhecimentoExtra = '') {
   const produtos = await getProdutosDaLoja(loja.id)
 
+  // Monta catálogo de produtos cadastrados manualmente
   const catalogo = produtos.length
     ? produtos.map(p => `• ${p.nome} | R$ ${p.preco_venda}`).join('\n')
-    : 'Nenhum produto cadastrado.'
+    : ''
 
-  return `${loja.prompt_base || `Você é atendente da ${loja.nome}`}
+  // Instrução base
+  let system = loja.prompt_base || `Você é um atendente virtual da ${loja.nome}. Atenda com simpatia e profissionalismo.`
 
-## PRODUTOS
-${catalogo}
+  // BASE DE CONHECIMENTO (RAG) — tem prioridade máxima
+  if (conhecimentoExtra) {
+    system += `\n\n## BASE DE CONHECIMENTO\nUse APENAS as informações abaixo para responder. Não invente nada.\n\n${conhecimentoExtra}`
+  }
 
-## CONHECIMENTO ADICIONAL
-${conhecimentoExtra}
+  // Catálogo adicional de produtos (se existir)
+  if (catalogo) {
+    system += `\n\n## PRODUTOS CADASTRADOS\n${catalogo}`
+  }
 
-${loja.instrucoes_extras || ''}
+  // Se não tiver nem RAG nem produtos, avisa o agente
+  if (!conhecimentoExtra && !catalogo) {
+    system += `\n\n## AVISO\nAinda não há produtos ou conhecimento cadastrado para este cliente. Responda de forma genérica e peça para o cliente entrar em contato diretamente.`
+  }
 
-- Responda apenas com base nos dados acima
-- Nunca invente informações
-`
+  // Instruções extras da loja
+  if (loja.instrucoes_extras) {
+    system += `\n\n## INSTRUÇÕES ADICIONAIS\n${loja.instrucoes_extras}`
+  }
+
+  system += `\n\n- Responda SEMPRE com base nas informações acima\n- NUNCA invente produtos, preços ou informações que não estejam no contexto`
+
+  return system
 }
 
 function extrairPedido(raw) {

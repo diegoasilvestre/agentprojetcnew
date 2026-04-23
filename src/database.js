@@ -240,11 +240,6 @@ export async function getStats(lojaId) {
   }
 }
 
-export async function listarLojas() {
-  const { data, error } = await db.from('lojas').select('*').order('nome')
-  if (error) { console.error('[DB] listarLojas:', error.message); return [] }
-  return data || []
-}
 export async function getDadosParaRAG(waId) {
   const { data: loja, error: erroLoja } = await db
     .from('lojas')

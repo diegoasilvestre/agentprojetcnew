@@ -86,7 +86,7 @@ async function chamarLLM(loja, numeroCliente, mensagem, tipo, imgB64) {
   const conhecimentoExtra = ragChunks.length
     ? `## CONHECIMENTO DA BASE (RAG):\n${ragChunks.map(c => `[Info]: ${c.conteudo}`).join('\n\n')}`
     : 'Nenhum conhecimento extra encontrado para esta pergunta.'
-  
+
   console.log(`[RAG][${loja.nome}] ${ragChunks.length} chunks relevantes encontrados.`)
 
   // 2. Histórico e System
@@ -94,7 +94,7 @@ async function chamarLLM(loja, numeroCliente, mensagem, tipo, imgB64) {
     getHistorico(loja.id, numeroCliente, 15),
     buildSystem(loja, conhecimentoExtra),
   ])
-  
+
   const config = loja.config || {}
   const temp = config.llm_temperature ?? 0.7
   const maxTok = config.llm_max_tokens ?? 1024
@@ -102,7 +102,7 @@ async function chamarLLM(loja, numeroCliente, mensagem, tipo, imgB64) {
 
   console.log(`[LLM][${loja.nome}] Usando modelo: ${modelPref}`)
 
-  // === GEMINI PATH ===
+  // === GEMINAI PATH  ===
   if (modelPref.startsWith('gemini')) {
     try {
       const contents = historico.map(h => ({
@@ -134,14 +134,14 @@ async function chamarLLM(loja, numeroCliente, mensagem, tipo, imgB64) {
     { role: 'system', content: system },
     ...historico.map(h => ({ role: h.role, content: h.content })),
   ]
-  
+
   if (tipo === 'imagem' && imgB64) {
     // Nota: Groq vision é instável, descrevemos o fato da imagem por texto
     messages.push({ role: 'user', content: `[O cliente enviou uma imagem] ${mensagem || 'O que você vê?'}` })
   } else {
     messages.push({ role: 'user', content: mensagem })
   }
-  
+
   try {
     const res = await groq.chat.completions.create({
       model: groqModel,

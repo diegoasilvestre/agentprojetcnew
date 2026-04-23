@@ -114,8 +114,9 @@ export async function atualizarProduto(id, patch) {
 // ── Histórico de conversas ────────────────────────────────────────────────────
 
 export async function getHistorico(lojaId, numeroCliente, limite = 20) {
+  // Try conversas_agente first (new schema), fallback to conversas
   const { data, error } = await db
-    .from('conversas')
+    .from('conversas_agente')
     .select('role, content')
     .eq('loja_id', lojaId)
     .eq('numero_cliente', numeroCliente)
@@ -127,7 +128,7 @@ export async function getHistorico(lojaId, numeroCliente, limite = 20) {
 }
 
 export async function salvarMensagem({ lojaId, numeroCliente, nomeCliente, role, content, tipo = 'texto' }) {
-  const { error } = await db.from('conversas').insert({
+  const { error } = await db.from('conversas_agente').insert({
     loja_id: lojaId,
     numero_cliente: numeroCliente,
     nome_cliente: nomeCliente,
@@ -140,7 +141,7 @@ export async function salvarMensagem({ lojaId, numeroCliente, nomeCliente, role,
 
 export async function listarContatos(lojaId) {
   const { data } = await db
-    .from('conversas')
+    .from('conversas_agente')
     .select('numero_cliente, nome_cliente, content, created_at, role')
     .eq('loja_id', lojaId)
     .order('created_at', { ascending: false })
@@ -162,7 +163,7 @@ export async function listarContatos(lojaId) {
 
 export async function getConversa(lojaId, numero, limite = 100) {
   const { data, error } = await db
-    .from('conversas')
+    .from('conversas_agente')
     .select('role, content, tipo, created_at')
     .eq('loja_id', lojaId)
     .eq('numero_cliente', numero)
@@ -174,7 +175,7 @@ export async function getConversa(lojaId, numero, limite = 100) {
 }
 
 export async function deletarConversa(lojaId, numero) {
-  await db.from('conversas')
+  await db.from('conversas_agente')
     .delete()
     .eq('loja_id', lojaId)
     .eq('numero_cliente', numero)
@@ -183,7 +184,7 @@ export async function deletarConversa(lojaId, numero) {
 export async function contagemMensagensHoje(lojaId) {
   const desde = new Date(Date.now() - 86400000).toISOString()
   const { count } = await db
-    .from('conversas')
+    .from('conversas_agente')
     .select('*', { count: 'exact', head: true })
     .eq('loja_id', lojaId)
     .eq('role', 'user')
@@ -237,6 +238,12 @@ export async function getStats(lojaId) {
     pedidosPendentes: pend.count || 0,
     totalDocs: docs.count || 0,
   }
+}
+
+export async function listarLojas() {
+  const { data, error } = await db.from('lojas').select('*').order('nome')
+  if (error) { console.error('[DB] listarLojas:', error.message); return [] }
+  return data || []
 }
 export async function getDadosParaRAG(waId) {
   const { data: loja, error: erroLoja } = await db

@@ -248,7 +248,7 @@ app.get('/admin/conversas/:lojaId/stats/hoje', async (req, res) => {
 
 app.get('/admin/conversas/:lojaId/recentes', async (req, res) => {
   const { data } = await db
-    .from('conversas')
+    .from('conversas_agente')
     .select('role, content, numero_cliente, nome_cliente, created_at')
     .eq('loja_id', req.params.lojaId)
     .order('created_at', { ascending: false })

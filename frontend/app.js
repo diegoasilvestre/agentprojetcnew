@@ -1,6 +1,6 @@
 // Mr RobotyBR — Admin Panel SPA
 const API = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://chatbot20agent-agentprojetcnew.up.railway.app'
-const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama-3.2-11b-vision-preview', 'mixtral-8x7b-32768', 'gemma2-9b-it', 'gemini-2.5-flash']
+const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'gemma2-9b-it', 'gemini-2.5-flash', 'gemini-2.0-flash']
 let state = { lojas: [], lojaId: null, loja: null, page: 'dashboard' }
 let waPolling = null
 
@@ -247,7 +247,7 @@ async function desconectarWA() {
 
 // === CLIENTES ===
 async function renderClientes() {
-  document.getElementById('pageContent').innerHTML = '<div class="card"><div class="card-header"><span class="card-title">Clientes / Lojas</span><button class="btn btn-primary btn-sm" onclick="openModalNovaLoja()">+ Nova Loja</button></div><div id="clientesList"><div class="spinner"></div></div></div>'
+  document.getElementById('pageContent').innerHTML = '<div class="card"><div class="card-header"><span class="card-title">Gerenciar Clientes</span><button class="btn btn-primary btn-sm" onclick="openModalNovaLoja()">+ Novo Cliente</button></div><div id="clientesList"><div class="spinner"></div></div></div>'
   loadClientes()
 }
 async function loadClientes() {
@@ -255,12 +255,20 @@ async function loadClientes() {
     var lojas = await api.get('/admin/lojas'); var el = document.getElementById('clientesList')
     if (!lojas.length) { el.innerHTML = '<div class="empty-state"><p>Nenhum cliente cadastrado</p></div>'; return }
     el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Nome</th><th>WA ID</th><th>Modelo LLM</th><th>Status</th><th>Acoes</th></tr></thead><tbody>' +
-      lojas.map(function (l) { return '<tr><td style="font-weight:600;color:var(--text-primary)">' + l.nome + '</td><td style="font-family:monospace;font-size:12px">' + (l.wa_id || '-') + '</td><td style="font-size:12px">' + (l.llm_model || 'padrao') + '</td><td><span class="badge ' + (l.ativa ? 'badge-success' : 'badge-danger') + '">' + (l.ativa ? 'Ativo' : 'Inativo') + '</span></td><td><button class="btn btn-secondary btn-sm" onclick="editarLoja(\'' + l.id + '\')">Editar</button></td></tr>' }).join('') +
+      lojas.map(function (l) { 
+        var cfg = l.config || {};
+        var modelName = cfg.llm_model || l.llm_model || 'padrão';
+        return '<tr><td style="font-weight:600;color:var(--text-primary)">' + l.nome + '</td><td style="font-family:monospace;font-size:12px">' + (l.wa_id || '-') + '</td><td style="font-size:12px">' + modelName + '</td><td><span class="badge ' + (l.ativa ? 'badge-success' : 'badge-danger') + '">' + (l.ativa ? 'Ativo' : 'Inativo') + '</span></td><td><button class="btn btn-secondary btn-sm" onclick="editarLoja(\'' + l.id + '\')">✏️ Editar</button></td></tr>' 
+      }).join('') +
       '</tbody></table></div>'
   } catch (err) { document.getElementById('clientesList').innerHTML = errMsg(err) }
 }
 function openModalNovaLoja() {
-  openModal('<div class="modal-title">+ Nova Loja / Cliente</div><div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="mNome" placeholder="Ex: Pizzaria do Joao"></div><div class="form-group"><label class="form-label">WA ID (numero sem + nem espacos)</label><input class="form-input" id="mWaId" placeholder="5511999999999"></div><div class="form-group"><label class="form-label">Prompt Base</label><textarea class="form-textarea" id="mPrompt" placeholder="Voce e atendente da loja..."></textarea></div><div style="display:flex;gap:12px;justify-content:flex-end;margin-top:8px"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="criarLoja()">Criar Loja</button></div>')
+  openModal('<div class="modal-title">+ Novo Cliente</div>' +
+    '<div class="form-group"><label class="form-label">Nome do Cliente / Empresa</label><input class="form-input" id="mNome" placeholder="Ex: Agência Tur Viagens, WavePod, Clínica Saúde"></div>' +
+    '<div class="form-group"><label class="form-label">WA ID (número sem + nem espaços)</label><input class="form-input" id="mWaId" placeholder="5511999999999"></div>' +
+    '<div class="form-group"><label class="form-label">Prompt Base do Agente</label><textarea class="form-textarea" id="mPrompt" placeholder="Você é um atendente virtual de [nome da empresa]. Atenda com simpatia e profissionalismo..."></textarea></div>' +
+    '<div style="display:flex;gap:12px;justify-content:flex-end;margin-top:8px"><button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="criarLoja()">Criar Cliente</button></div>')
 }
 async function criarLoja() {
   var nome = document.getElementById('mNome').value.trim(), wa_id = document.getElementById('mWaId').value.trim(), prompt_base = document.getElementById('mPrompt').value.trim()

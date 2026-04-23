@@ -82,7 +82,11 @@ function extrairPedido(raw) {
 
 async function chamarLLM(loja, numeroCliente, mensagem, tipo, imgB64) {
   const ragChunks = await buscarRAGRelevante(loja.id, mensagem)
-  const conhecimentoExtra = ragChunks.map(c => c.conteudo).join('\n\n')
+  const conhecimentoExtra = ragChunks.length
+    ? `## BASE DE CONHECIMENTO\n${ragChunks.map(c => c.conteudo).join('\n\n')}`
+    : ''
+  
+  console.log(`[RAG] ${ragChunks.length} chunks encontrados para: "${mensagem?.substring(0,50)}"`)
 
   const [historico, system] = await Promise.all([
     getHistorico(loja.id, numeroCliente, 20),
@@ -92,18 +96,14 @@ async function chamarLLM(loja, numeroCliente, mensagem, tipo, imgB64) {
   const config = loja.config || {}
   const temp = config.llm_temperature != null ? config.llm_temperature : 0.7
   const maxTok = config.llm_max_tokens || 1024
-  let model = config.llm_model || 'llama-3.3-70b-versatile'
+  const modelPref = config.llm_model || 'llama-3.3-70b-versatile'
 
-  if (tipo === 'imagem') {
-    model = model.startsWith('gemini') ? 'gemini-2.5-flash' : 'llama-3.2-11b-vision-preview'
-  }
-
-  if (model.startsWith('gemini')) {
+  // === GEMINI PATH ===
+  if (modelPref.startsWith('gemini')) {
     const contents = historico.map(h => ({
       role: h.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: h.content }]
     }))
-    
     const userParts = []
     if (tipo === 'imagem' && imgB64) {
       userParts.push({ inlineData: { mimeType: 'image/jpeg', data: imgB64 } })
@@ -113,32 +113,52 @@ async function chamarLLM(loja, numeroCliente, mensagem, tipo, imgB64) {
 
     try {
       const res = await gemini.models.generateContent({
-        model: model,
+        model: 'gemini-2.5-flash',
         contents: contents,
         config: { systemInstruction: system, temperature: temp, maxOutputTokens: maxTok }
       })
-      return extrairPedido(res.text || 'Oi! Tive uma instabilidade. Pode repetir? 😊')
+      return extrairPedido(res.text || '')
     } catch (e) {
       console.error('[Gemini Error]', e.message)
-      return extrairPedido('Oi! Tive uma instabilidade com o Google Gemini. Pode repetir? 😊')
+      // Fallback para Groq
+      console.log('[Fallback] Gemini falhou, tentando Groq...')
     }
+  }
+
+  // === GROQ PATH (default + fallback do Gemini) ===
+  const groqModel = modelPref.startsWith('gemini') ? 'llama-3.3-70b-versatile' : modelPref
+  const messages = [
+    { role: 'system', content: system },
+    ...historico.map(h => ({ role: h.role, content: h.content })),
+  ]
+  if (tipo === 'imagem' && imgB64) {
+    // Groq vision model decommissioned, describe via text only
+    messages.push({ role: 'user', content: `[Imagem recebida] ${mensagem || 'O cliente enviou uma imagem.'}` })
   } else {
-    const messages = [
-      { role: 'system', content: system },
-      ...historico.map(h => ({ role: h.role, content: h.content })),
-    ]
-    if (tipo === 'imagem' && imgB64) {
-      messages.push({
-        role: 'user', content: [
-          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imgB64}` } },
-          { type: 'text', text: mensagem || 'Analise a imagem.' },
-        ]
+    messages.push({ role: 'user', content: mensagem })
+  }
+  
+  try {
+    const res = await groq.chat.completions.create({ model: groqModel, messages, temperature: temp, max_tokens: maxTok })
+    return extrairPedido(res.choices[0]?.message?.content || '')
+  } catch (groqErr) {
+    console.error('[Groq Error]', groqErr.message)
+    // Last resort fallback to Gemini
+    try {
+      const contents = [
+        ...historico.map(h => ({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.content }] })),
+        { role: 'user', parts: [{ text: mensagem }] }
+      ]
+      const res = await gemini.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents,
+        config: { systemInstruction: system, temperature: temp, maxOutputTokens: maxTok }
       })
-    } else {
-      messages.push({ role: 'user', content: mensagem })
+      return extrairPedido(res.text || '')
+    } catch (gemErr) {
+      console.error('[Gemini Fallback Error]', gemErr.message)
+      return extrairPedido('Oi! Estou com instabilidade momentânea. Pode repetir sua pergunta? 😊')
     }
-    const res = await groq.chat.completions.create({ model, messages, temperature: temp, max_tokens: maxTok })
-    return extrairPedido(res.choices[0]?.message?.content || 'Oi! Tive uma instabilidade na Groq. Pode repetir? 😊')
   }
 }
 

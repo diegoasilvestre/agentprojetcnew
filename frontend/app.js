@@ -251,7 +251,24 @@ function openModalNovaLoja(){
 async function criarLoja(){
   var nome=document.getElementById('mNome').value.trim(),wa_id=document.getElementById('mWaId').value.trim(),prompt_base=document.getElementById('mPrompt').value.trim()
   if(!nome||!wa_id){toast('Nome e WA ID sao obrigatorios','error');return}
-  try{await api.post('/admin/lojas',{nome:nome,wa_id:wa_id,prompt_base:prompt_base});toast('Loja criada!');closeModal();state.lojas=await api.get('/admin/lojas');populateLojaSelect();loadClientes()}
+  try{
+    var novaLoja = await api.post('/admin/lojas',{nome:nome,wa_id:wa_id,prompt_base:prompt_base});
+    toast('Cliente criado! Agora conecte o WhatsApp.');
+    closeModal();
+    state.lojas=await api.get('/admin/lojas');
+    populateLojaSelect();
+    
+    state.lojaId = novaLoja.id;
+    state.loja = state.lojas.find(function(l){return l.id===novaLoja.id}) || novaLoja;
+    document.getElementById('lojaSelect').value = state.lojaId;
+    document.getElementById('lojaNameTopbar').textContent = state.loja.nome;
+    
+    navigate('whatsapp');
+    setTimeout(function(){
+      var waInput = document.getElementById('waNumero');
+      if(waInput) waInput.value = wa_id;
+    }, 150);
+  }
   catch(err){toast(err.message,'error')}
 }
 async function editarLoja(id){

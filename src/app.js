@@ -31,13 +31,8 @@ import {
   contagemMensagensHoje,
   getStats
 } 
-
-
-
 from './database.js'; // Removi o responderAgente daqui, ele não pertence ao banco.
-
 import { instanceManager, responderAgente } from './whatsapp.js'; // Centralizei tudo do Zap aqui.
-const upload = multer({ dest: 'uploads/' })
 const app  = express()
 const PORT = process.env.PORT || 3000
 
@@ -95,7 +90,7 @@ app.get('/status', (_, res) => {
 // ROTAS PROTEGIDAS
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ── WhatsApp: multi-instância ─────────────────────────────────────────────────
+// ── DAAALE
 
 /**
  * POST /wa/connect

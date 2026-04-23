@@ -102,7 +102,7 @@ async function chamarLLM(loja, numeroCliente, mensagem, tipo, imgB64) {
 
   console.log(`[LLM][${loja.nome}] Usando modelo: ${modelPref}`)
 
-  // === GEMINAI PATH  ===
+  // === GEMINI PATH ===
   if (modelPref.startsWith('gemini')) {
     try {
       const contents = historico.map(h => ({

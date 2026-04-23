@@ -130,6 +130,11 @@ app.delete('/cliente/rag/:id', async (req, res) => { await deletarDocumentoRAG(r
 
 // Conversas
 app.get('/admin/conversas/:lojaId/contatos', async (req, res) => res.json(await listarContatos(req.params.lojaId)))
+app.get('/admin/conversas/:lojaId/recentes', async (req, res) => {
+  const { data } = await db.from('conversas_agente').select('role, content, numero_cliente, nome_cliente, created_at').eq('loja_id', req.params.lojaId).order('created_at', { ascending: false }).limit(20)
+  res.json((data || []).reverse())
+})
+
 app.get('/admin/conversas/:lojaId/:numero', async (req, res) => res.json(await getConversa(req.params.lojaId, req.params.numero)))
 app.delete('/admin/conversas/:lojaId/:numero', async (req, res) => {
   await deletarConversa(req.params.lojaId, req.params.numero); res.json({ ok: true })

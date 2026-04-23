@@ -82,16 +82,18 @@ async function renderAgente() {
   if (!state.lojaId) { c.innerHTML = noLojaMsg(); return }
   try {
     var loja = await api.get('/admin/lojas/' + state.lojaId)
-    var temp = loja.llm_temperature != null ? loja.llm_temperature : 0.7
-    var maxTok = loja.llm_max_tokens || 512
-    var model = loja.llm_model || GROQ_MODELS[0]
+    state.loja = loja // Save to state for later use
+    var config = loja.config || {}
+    var temp = config.llm_temperature != null ? config.llm_temperature : 0.7
+    var maxTok = config.llm_max_tokens || 512
+    var model = config.llm_model || GROQ_MODELS[0]
     c.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">' +
       '<div><div class="card"><div class="card-title" style="margin-bottom:16px">Prompt do Agente</div>' +
       '<div class="form-group"><label class="form-label">Prompt Base (System Prompt)</label><textarea class="form-textarea" id="promptBase" style="min-height:180px">' + (loja.prompt_base || '') + '</textarea></div>' +
       '<div class="form-group"><label class="form-label">Instrucoes Extras</label><textarea class="form-textarea" id="instrExtras" style="min-height:100px">' + (loja.instrucoes_extras || '') + '</textarea></div>' +
       '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><label class="form-label" style="margin:0">Bot Ativo</label><label class="toggle"><input type="checkbox" id="botAtivo"' + (loja.ativa ? ' checked' : '') + '><span class="toggle-slider"></span></label></div>' +
       '<button class="btn btn-primary" onclick="salvarAgente()">Salvar Configuracoes</button></div></div>' +
-      '<div><div class="card"><div class="card-title" style="margin-bottom:16px">Configuracao do LLM (Groq)</div>' +
+      '<div><div class="card"><div class="card-title" style="margin-bottom:16px">Configuracao do LLM (Groq/Gemini)</div>' +
       '<div class="form-group"><label class="form-label">Modelo</label><select class="form-select" id="llmModel">' + GROQ_MODELS.map(function (m) { return '<option value="' + m + '"' + (m === model ? ' selected' : '') + '>' + m + '</option>' }).join('') + '</select></div>' +
       '<div class="form-group"><label class="form-label">Temperatura - <span class="range-value" id="tempVal">' + temp + '</span></label><input type="range" id="llmTemp" min="0" max="2" step="0.1" value="' + temp + '" oninput="document.getElementById(\'tempVal\').textContent=this.value"><p style="font-size:11px;color:var(--text-muted);margin-top:4px">0 = deterministico - 1 = balanceado - 2 = criativo</p></div>' +
       '<div class="form-group"><label class="form-label">Max Tokens - <span class="range-value" id="tokVal">' + maxTok + '</span></label><input type="range" id="llmMaxTokens" min="128" max="4096" step="64" value="' + maxTok + '" oninput="document.getElementById(\'tokVal\').textContent=this.value"></div>' +
@@ -109,8 +111,14 @@ async function salvarAgente() {
   catch (err) { toast(err.message, 'error') }
 }
 async function salvarLLM() {
-  try { await api.patch('/admin/lojas/' + state.lojaId, { llm_model: document.getElementById('llmModel').value, llm_temperature: parseFloat(document.getElementById('llmTemp').value), llm_max_tokens: parseInt(document.getElementById('llmMaxTokens').value) }); toast('Configuracao LLM salva!') }
-  catch (err) { toast(err.message, 'error') }
+  try {
+    var cfg = (state.loja && state.loja.config) || {};
+    cfg.llm_model = document.getElementById('llmModel').value;
+    cfg.llm_temperature = parseFloat(document.getElementById('llmTemp').value);
+    cfg.llm_max_tokens = parseInt(document.getElementById('llmMaxTokens').value);
+    await api.patch('/admin/lojas/' + state.lojaId, { config: cfg });
+    toast('Configuracao LLM salva!') 
+  } catch (err) { toast(err.message, 'error') }
 }
 async function testarAgente() {
   var phone = document.getElementById('simPhone').value, text = document.getElementById('simText').value

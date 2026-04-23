@@ -89,9 +89,10 @@ async function chamarLLM(loja, numeroCliente, mensagem, tipo, imgB64) {
     buildSystem(loja, conhecimentoExtra),
   ])
   
-  const temp = loja.llm_temperature != null ? loja.llm_temperature : 0.7
-  const maxTok = loja.llm_max_tokens || 1024
-  let model = loja.llm_model || 'llama-3.3-70b-versatile'
+  const config = loja.config || {}
+  const temp = config.llm_temperature != null ? config.llm_temperature : 0.7
+  const maxTok = config.llm_max_tokens || 1024
+  let model = config.llm_model || 'llama-3.3-70b-versatile'
 
   if (tipo === 'imagem') {
     model = model.startsWith('gemini') ? 'gemini-1.5-flash' : 'llama-3.2-11b-vision-preview'

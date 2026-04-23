@@ -220,19 +220,19 @@ export async function atualizarPedido(id, patch) {
 // ── Stats para dashboard ──────────────────────────────────────────────────────
 
 export async function getStats(lojaId) {
-  const [conv, pend, prod] = await Promise.all([
+  const [conv, pend, docs] = await Promise.all([
     contagemMensagensHoje(lojaId),
     db.from('pedidos_agente')
       .select('id', { count: 'exact', head: true })
       .eq('loja_id', lojaId).eq('status', 'Pendente'),
-    db.from('produtos_agente')
+    db.from('rag_documentos')
       .select('id', { count: 'exact', head: true })
       .eq('loja_id', lojaId).eq('ativo', true),
   ])
   return {
     conversasHoje: conv,
     pedidosPendentes: pend.count || 0,
-    totalProdutos: prod.count || 0,
+    totalDocs: docs.count || 0,
   }
 }
 export async function getDadosParaRAG(waId) {

@@ -235,14 +235,8 @@ export async function getStats(lojaId) {
     totalProdutos: prod.count || 0,
   }
 
-  // Adicione isso ao final do database.js
-async function getDadosParaRAG(waId) {
-
-module.exports = {
-  getDadosParaRAG
-}
-const { getDadosParaRAG } = require('./database.js')
-  // Busca a loja, o prompt e os produtos de uma vez
+// ── RAG DINÂMICO ─────────────────────────────
+export async function getDadosParaRAG(waId) {
   const { data: loja, error: erroLoja } = await db
     .from('lojas')
     .select('id, nome, prompt_base, instrucoes_extras')
@@ -257,7 +251,7 @@ const { getDadosParaRAG } = require('./database.js')
     .eq('loja_id', loja.id);
 
   return { loja, produtos };
-  }
+}
 }
 // ── RAG DOCUMENTOS ─────────────────────────────
 

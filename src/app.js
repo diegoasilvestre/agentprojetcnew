@@ -13,9 +13,8 @@ import pdf from 'pdf-parse'
 import xlsx from 'xlsx'
 import { salvarDocumentoRAG } from './database.js'
 import axios from 'axios'
-import cheerio from 'cheerio'
+import * as cheerio from 'cheerio'
 const upload = multer({ dest: 'uploads/' })
-fs.unlinkSync(file.path)
 import { listarDocumentosRAG, deletarDocumentoRAG } from './database.js'
 import {
   db,
@@ -306,6 +305,8 @@ app.post('/cliente/upload', upload.single('file'), async (req, res) => {
       const wb = xlsx.readFile(file.path)
       conteudo = JSON.stringify(wb.Sheets)
     }
+// 👉 remove o arquivo TEMPORÁRIO AQUI
+    fs.unlinkSync(file.path)
 
     await salvarDocumentoRAG({
       loja_id: req.body.loja_id,

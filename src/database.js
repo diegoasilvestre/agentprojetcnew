@@ -236,7 +236,12 @@ export async function getStats(lojaId) {
   }
 
   // Adicione isso ao final do database.js
-export async function getDadosParaRAG(waId) {
+async function getDadosParaRAG(waId) {
+
+module.exports = {
+  getDadosParaRAG
+}
+const { getDadosParaRAG } = require('./database.js')
   // Busca a loja, o prompt e os produtos de uma vez
   const { data: loja, error: erroLoja } = await db
     .from('lojas')

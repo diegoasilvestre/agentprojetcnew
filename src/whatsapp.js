@@ -18,7 +18,7 @@ import { GoogleGenAI } from '@google/genai'
 import {
   getLojaPorWaId, getProdutosDaLoja,
   getHistorico, salvarMensagem, criarPedido,
-  getDadosParaRAG
+  getDadosParaRAG, buscarRAGRelevante
 } from './database.js'
 
 const logger = pino({ level: 'silent' })
@@ -49,19 +49,13 @@ function dividirMensagem(texto, maxLen = 1000) {
 }
 
 // ── RAG + Groq ────────────────────────────────────────────────────────────────
-import { listarDocumentosRAG } from './database.js'
 
-async function buildSystem(loja) {
+async function buildSystem(loja, conhecimentoExtra = '') {
   const produtos = await getProdutosDaLoja(loja.id)
-  const docs = await listarDocumentosRAG(loja.id)
 
   const catalogo = produtos.length
     ? produtos.map(p => `• ${p.nome} | R$ ${p.preco_venda}`).join('\n')
     : 'Nenhum produto cadastrado.'
-
-  const conhecimento = docs.length
-    ? docs.map(d => `# ${d.titulo}\n${d.conteudo}`).join('\n\n')
-    : ''
 
   return `${loja.prompt_base || `Você é atendente da ${loja.nome}`}
 
@@ -69,7 +63,7 @@ async function buildSystem(loja) {
 ${catalogo}
 
 ## CONHECIMENTO ADICIONAL
-${conhecimento}
+${conhecimentoExtra}
 
 ${loja.instrucoes_extras || ''}
 
@@ -87,9 +81,12 @@ function extrairPedido(raw) {
 }
 
 async function chamarLLM(loja, numeroCliente, mensagem, tipo, imgB64) {
+  const ragChunks = await buscarRAGRelevante(loja.id, mensagem)
+  const conhecimentoExtra = ragChunks.map(c => c.conteudo).join('\n\n')
+
   const [historico, system] = await Promise.all([
     getHistorico(loja.id, numeroCliente, 20),
-    buildSystem(loja),
+    buildSystem(loja, conhecimentoExtra),
   ])
   
   const temp = loja.llm_temperature != null ? loja.llm_temperature : 0.7

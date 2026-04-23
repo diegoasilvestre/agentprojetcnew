@@ -9,7 +9,10 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { GoogleGenAI } from '@google/genai'
 import 'dotenv/config'
+
+const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY })
 
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
   console.error('❌ SUPABASE_URL ou SUPABASE_SERVICE_KEY não configurados')
@@ -254,6 +257,35 @@ export async function getDadosParaRAG(waId) {
 
 // ── RAG DOCUMENTOS ─────────────────────────────
 
+function dividirTextoEmChunks(texto, tamanhoAprox = 800) {
+  const paragraphs = texto.split(/\n\s*\n/)
+  const chunks = []
+  let currentChunk = ''
+  for (const p of paragraphs) {
+    if ((currentChunk.length + p.length) > tamanhoAprox && currentChunk.length > 0) {
+      chunks.push(currentChunk.trim())
+      currentChunk = p
+    } else {
+      currentChunk += '\n\n' + p
+    }
+  }
+  if (currentChunk.trim().length > 0) chunks.push(currentChunk.trim())
+  return chunks.length ? chunks : [texto]
+}
+
+async function gerarEmbedding(texto) {
+  try {
+    const res = await gemini.models.embedContent({
+      model: 'text-embedding-004',
+      contents: texto
+    })
+    return res.embeddings[0].values
+  } catch (err) {
+    console.error('[Embedding Error]', err.message)
+    return null
+  }
+}
+
 export async function salvarDocumentoRAG({ loja_id, tipo, titulo, conteudo, fonte }) {
   const { data, error } = await db
     .from('rag_documentos')
@@ -269,7 +301,40 @@ export async function salvarDocumentoRAG({ loja_id, tipo, titulo, conteudo, font
     .single()
 
   if (error) throw new Error(error.message)
+
+  // Gerar chunks e embeddings
+  const chunks = dividirTextoEmChunks(conteudo)
+  for (const chunk of chunks) {
+    const embedding = await gerarEmbedding(chunk)
+    if (embedding) {
+      await db.from('rag_chunks').insert({
+        documento_id: data.id,
+        loja_id: loja_id,
+        conteudo: chunk,
+        embedding: embedding
+      })
+    }
+  }
+
   return data
+}
+
+export async function buscarRAGRelevante(lojaId, pergunta) {
+  const embedding = await gerarEmbedding(pergunta)
+  if (!embedding) return []
+  
+  const { data, error } = await db.rpc('match_rag_chunks', {
+    query_embedding: embedding,
+    match_threshold: 0.3,
+    match_count: 5,
+    p_loja_id: lojaId
+  })
+  
+  if (error) { 
+    console.error('[DB] match_rag_chunks:', error.message)
+    return [] 
+  }
+  return data || []
 }
 
 export async function listarDocumentosRAG(loja_id) {

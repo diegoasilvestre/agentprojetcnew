@@ -56,6 +56,15 @@ function auth(req, res, next) {
 // ── Rotas ────────────────────────────────────────────────────────────────────
 app.get('/', (_, res) => res.json({ status: 'online', api: 'Agents Intelligence v3' }))
 
+app.get('/status', (_, res) => {
+  res.json({
+    servidor: 'online',
+    uptime: Math.floor(process.uptime()) + 's',
+    instancias: instanceManager.allStates(),
+    timestamp: new Date().toISOString(),
+  })
+})
+
 // WhatsApp
 app.post('/wa/connect', async (req, res) => {
   const { loja_id, numero } = req.body

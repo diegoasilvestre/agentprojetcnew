@@ -46,33 +46,33 @@ function dividirMensagem(texto, maxLen = 1000) {
 }
 
 // ── RAG + Groq ────────────────────────────────────────────────────────────────
+import { listarDocumentosRAG } from './database.js'
+
 async function buildSystem(loja) {
   const produtos = await getProdutosDaLoja(loja.id)
+  const docs = await listarDocumentosRAG(loja.id)
+
   const catalogo = produtos.length
-    ? produtos.map(p => [
-        `• ${p.nome}`,
-        p.sabor && `sabor: ${p.sabor}`,
-        p.preco_venda && `R$ ${Number(p.preco_venda).toFixed(2).replace('.', ',')}`,
-        p.quantidade != null && `${p.quantidade} un.`,
-        p.descricao,
-      ].filter(Boolean).join(' | ')).join('\n')
+    ? produtos.map(p => `• ${p.nome} | R$ ${p.preco_venda}`).join('\n')
     : 'Nenhum produto cadastrado.'
 
-  return `${loja.prompt_base || `Você é atendente da "${loja.nome}".`}
+  const conhecimento = docs.length
+    ? docs.map(d => `# ${d.titulo}\n${d.conteudo}`).join('\n\n')
+    : ''
 
-## Catálogo (tempo real do banco)
+  return `${loja.prompt_base || `Você é atendente da ${loja.nome}`}
+
+## PRODUTOS
 ${catalogo}
 
-## Regras
+## CONHECIMENTO ADICIONAL
+${conhecimento}
+
 ${loja.instrucoes_extras || ''}
-- Responda SOMENTE em português.
-- Máximo 3 parágrafos por mensagem. É WhatsApp.
-- Responda APENAS sobre produtos listados acima. Nunca invente.
-- Se não souber: "Posso chamar um atendente humano. Quer que eu chame?"
-- Para fechar pedido colete: nome, endereço, itens, pagamento.
-- Quando tiver todos os dados inclua ao FINAL (será removido antes de enviar):
-  PEDIDO_JSON:{"nome_cliente":"","itens":[{"nome":"","qty":1,"preco":0}],"total":0,"pagamento":"Pix"}
-- Nunca diga que é IA, a menos que perguntado.`.trim()
+
+- Responda apenas com base nos dados acima
+- Nunca invente informações
+`
 }
 
 function extrairPedido(raw) {

@@ -7,6 +7,13 @@ import express from 'express'
 import cors from 'cors'
 import jwt from 'jsonwebtoken'
 import jwksClient from 'jwks-rsa'
+import multer from 'multer'
+import fs from 'fs'
+import pdf from 'pdf-parse'
+import xlsx from 'xlsx'
+import { salvarDocumentoRAG } from './database.js'
+const upload = multer({ dest: 'uploads/' })
+import { listarDocumentosRAG, deletarDocumentoRAG } from './database.js'
 import {
   db,
   listarLojas, 
@@ -24,10 +31,13 @@ import {
   contagemMensagensHoje,
   getStats
 } 
+
+
+
 from './database.js'; // Removi o responderAgente daqui, ele não pertence ao banco.
 
 import { instanceManager, responderAgente } from './whatsapp.js'; // Centralizei tudo do Zap aqui.
-
+const upload = multer({ dest: 'uploads/' })
 const app  = express()
 const PORT = process.env.PORT || 3000
 
@@ -89,7 +99,7 @@ app.get('/status', (_, res) => {
 
 /**
  * POST /wa/connect
- * Body: { loja_id, numero }
+ * Body: { loja_id, numero }gi
  * Conecta uma loja via pairing code. Retorna o código de 8 letras.
  */
 app.post('/wa/connect', async (req, res) => {
@@ -279,6 +289,71 @@ app.delete('/admin/conversas/:lojaId/:numero', auth, async (req, res) => {
   res.json({ ok: true })
 })
 
+
+// ═════════════════════════════════════
+// ROTAS CLIENTE (RAG)
+// ═════════════════════════════════════
+
+app.post('/cliente/upload', upload.single('file'), async (req, res) => {
+  try {
+    const file = req.file
+    let conteudo = ''
+
+    if (file.mimetype === 'application/pdf') {
+      const data = await pdf(fs.readFileSync(file.path))
+      conteudo = data.text
+    }
+
+    if (file.mimetype.includes('sheet')) {
+      const wb = xlsx.readFile(file.path)
+      conteudo = JSON.stringify(wb.Sheets)
+    }
+
+    await salvarDocumentoRAG({
+      loja_id: req.body.loja_id,
+      tipo: 'arquivo',
+      titulo: file.originalname,
+      conteudo
+    })
+
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ erro: err.message })
+  }
+})
+
+app.post('/cliente/importar-link', async (req, res) => {
+  try {
+    const { url, loja_id } = req.body
+
+    const html = await axios.get(url)
+    const $ = cheerio.load(html.data)
+
+    const texto = $('body').text().replace(/\s+/g, ' ')
+
+    await salvarDocumentoRAG({
+      loja_id,
+      tipo: 'link',
+      titulo: url,
+      conteudo: texto,
+      fonte: url
+    })
+
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ erro: err.message })
+  }
+})
+
+app.get('/cliente/rag/:loja_id', async (req, res) => {
+  const docs = await listarDocumentosRAG(req.params.loja_id)
+  res.json(docs)
+})
+
+app.delete('/cliente/rag/:id', async (req, res) => {
+  await deletarDocumentoRAG(req.params.id)
+  res.json({ ok: true })
+})
 // ══════════════════════════════════════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════════════════════════════════════

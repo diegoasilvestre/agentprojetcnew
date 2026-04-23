@@ -234,4 +234,61 @@ export async function getStats(lojaId) {
     pedidosPendentes: pend.count || 0,
     totalProdutos: prod.count || 0,
   }
+
+  // Adicione isso ao final do database.js
+export async function getDadosParaRAG(waId) {
+  // Busca a loja, o prompt e os produtos de uma vez
+  const { data: loja, error: erroLoja } = await db
+    .from('lojas')
+    .select('id, nome, prompt_base, instrucoes_extras')
+    .eq('wa_id', waId)
+    .single();
+
+  if (erroLoja || !loja) return null;
+
+  const { data: produtos } = await db
+    .from('produtos')
+    .select('nome, descricao, preco, link')
+    .eq('loja_id', loja.id);
+
+  return { loja, produtos };
+  }
+}
+// ── RAG DOCUMENTOS ─────────────────────────────
+
+export async function salvarDocumentoRAG({ loja_id, tipo, titulo, conteudo, fonte }) {
+  const { data, error } = await db
+    .from('rag_documentos')
+    .insert({
+      loja_id,
+      tipo,
+      titulo,
+      conteudo,
+      fonte,
+      ativo: true
+    })
+    .select()
+    .single()
+
+  if (error) throw new Error(error.message)
+  return data
+}
+
+export async function listarDocumentosRAG(loja_id) {
+  const { data, error } = await db
+    .from('rag_documentos')
+    .select('*')
+    .eq('loja_id', loja_id)
+    .eq('ativo', true)
+    .order('criado_em', { ascending: false })
+
+  if (error) return []
+  return data || []
+}
+
+export async function deletarDocumentoRAG(id) {
+  await db
+    .from('rag_documentos')
+    .update({ ativo: false })
+    .eq('id', id)
 }

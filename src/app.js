@@ -188,11 +188,11 @@ ${loja.instrucoes_extras || ''}
 })
 
 // ── Lojas ─────────────────────────────────────────────────────────────────────
-app.get('/admin/lojas', auth, async (_, res) => {
+app.get('/admin/lojas', async (_, res) => {
   res.json(await listarLojas())
 })
 
-app.post('/admin/lojas', auth, async (req, res) => {
+app.post('/admin/lojas', async (req, res) => {
   const { nome, wa_id, prompt_base, instrucoes_extras } = req.body
   if (!nome || !wa_id) return res.status(400).json({ erro: 'nome e wa_id são obrigatórios' })
   try {

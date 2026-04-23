@@ -13,17 +13,11 @@ import pino from 'pino'
 import path from 'path'
 import fs from 'fs'
 import sharp from 'sharp'
-import Groq from 'groq-sdk'
-import { GoogleGenAI } from '@google/genai'
 import {
-  getLojaPorWaId, getProdutosDaLoja,
-  getHistorico, salvarMensagem, criarPedido,
-  buscarRAGRelevante
+  getLojaPorWaId, criarPedido, salvarMensagem, getHistorico
 } from './database.js'
 
 const logger = pino({ level: 'silent' })
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
-const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY }) // fallback
 const BOOT_TIME = Math.floor(Date.now() / 1000)
 const delay = (ms) => new Promise(r => setTimeout(r, ms))
 
@@ -48,113 +42,22 @@ function dividirMensagem(texto, maxLen = 1000) {
   return blocos
 }
 
-// ── RAG + Groq ────────────────────────────────────────────────────────────────
-
-async function buildSystem(loja, conhecimentoExtra = '') {
-  const produtos = await getProdutosDaLoja(loja.id)
-
-  const catalogo = produtos.length
-    ? produtos.map(p => `• ${p.nome} | R$ ${p.preco_venda}`).join('\n')
-    : 'Nenhum produto cadastrado.'
-
-  return `${loja.prompt_base || `Você é atendente da ${loja.nome}`}
-
-## PRODUTOS
-${catalogo}
-
-## CONHECIMENTO ADICIONAL
-${conhecimentoExtra}
-
-${loja.instrucoes_extras || ''}
-
-- Responda apenas com base nos dados acima
-- Nunca invente informações
-`
-}
-
-function extrairPedido(raw) {
-  try {
-    const m = raw.match(/PEDIDO_JSON:(\{[\s\S]*?\})/)
-    if (!m) return { texto: raw.trim(), pedido: null }
-    return { texto: raw.replace(/PEDIDO_JSON:[\s\S]*?(\n|$)/, '').trim(), pedido: JSON.parse(m[1]) }
-  } catch { return { texto: raw.trim(), pedido: null } }
-}
-
-async function chamarLLM(loja, numeroCliente, mensagem, tipo, imgB64) {
-  // 1. Busca RAG
-  const ragChunks = await buscarRAGRelevante(loja.id, mensagem)
-  const conhecimentoExtra = ragChunks.length
-    ? `## CONHECIMENTO DA BASE (RAG):\n${ragChunks.map(c => `[Info]: ${c.conteudo}`).join('\n\n')}`
-    : 'Nenhum conhecimento extra encontrado para esta pergunta.'
-
-  console.log(`[RAG][${loja.nome}] ${ragChunks.length} chunks relevantes encontrados.`)
-
-  // 2. Histórico e System
-  const [historico, system] = await Promise.all([
-    getHistorico(loja.id, numeroCliente, 15),
-    buildSystem(loja, conhecimentoExtra),
-  ])
-
-  const config = loja.config || {}
-  const temp = config.llm_temperature ?? 0.7
-  const maxTok = config.llm_max_tokens ?? 1024
-  const modelPref = config.llm_model || 'llama-3.3-70b-versatile'
-
-  console.log(`[LLM][${loja.nome}] Usando modelo: ${modelPref}`)
-
-  // === GEMINI PATH ===
-  if (modelPref.startsWith('gemini')) {
-    try {
-      const contents = historico.map(h => ({
-        role: h.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: h.content }]
-      }))
-      const userParts = []
-      if (tipo === 'imagem' && imgB64) {
-        userParts.push({ inlineData: { mimeType: 'image/jpeg', data: imgB64 } })
-      }
-      userParts.push({ text: mensagem || 'Analise a imagem e responda conforme as instruções.' })
-      contents.push({ role: 'user', parts: userParts })
-
-      const res = await gemini.models.generateContent({
-        model: 'gemini-2.0-flash', // Forçando a versão mais estável e rápida
-        contents,
-        config: { systemInstruction: system, temperature: temp, maxOutputTokens: maxTok }
-      })
-      return extrairPedido(res.text || '')
-    } catch (e) {
-      console.error(`[LLM][${loja.nome}] Gemini erro:`, e.message)
-      // Fallback para Groq se o Gemini falhar
-    }
-  }
-
-  // === GROQ PATH (Default ou Fallback) ===
-  const groqModel = modelPref.startsWith('gemini') ? 'llama-3.3-70b-versatile' : modelPref
-  const messages = [
-    { role: 'system', content: system },
-    ...historico.map(h => ({ role: h.role, content: h.content })),
-  ]
-
-  if (tipo === 'imagem' && imgB64) {
-    // Nota: Groq vision é instável, descrevemos o fato da imagem por texto
-    messages.push({ role: 'user', content: `[O cliente enviou uma imagem] ${mensagem || 'O que você vê?'}` })
-  } else {
-    messages.push({ role: 'user', content: mensagem })
-  }
-
-  try {
-    const res = await groq.chat.completions.create({
-      model: groqModel,
-      messages,
-      temperature: temp,
-      max_tokens: maxTok
-    })
-    return extrairPedido(res.choices[0]?.message?.content || '')
-  } catch (err) {
-    console.error(`[LLM][${loja.nome}] Groq erro:`, err.message)
-    // Último recurso: Gemini básico sem instrução de sistema complexa se tudo falhar
-    return extrairPedido('Desculpe, tive um problema técnico momentâneo. Pode tentar novamente? 😊')
-  }
+async function chamarIA(loja, numeroCliente, mensagem, tipo, imgB64) {
+  const PYTHON_URL = process.env.PYTHON_AI_URL || 'http://localhost:8000'
+  const resp = await fetch(`${PYTHON_URL}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      loja_id: loja.id,
+      numero_cliente: numeroCliente,
+      mensagem,
+      tipo,
+      img_b64: imgB64 || null,
+    }),
+    signal: AbortSignal.timeout(30000),
+  })
+  if (!resp.ok) throw new Error(`AI Engine: ${resp.status}`)
+  return await resp.json() // { texto, pedido }
 }
 
 // ── Instância por loja ────────────────────────────────────────────────────────
@@ -320,10 +223,10 @@ class WaInstance {
     await this.sock.sendPresenceUpdate('composing', jid)
     let resposta = '', pedido = null
     try {
-      const r = await chamarLLM(loja, numeroCliente, texto, tipo, imgB64)
+      const r = await chamarIA(loja, numeroCliente, texto, tipo, imgB64)
       resposta = r.texto; pedido = r.pedido
     } catch (err) {
-      console.error(`[WA][${this.lojaId}] Groq erro:`, err.message)
+      console.error(`[WA][${this.lojaId}] AI Engine erro:`, err.message)
       resposta = 'Oi! Tive uma instabilidade. Pode repetir? 😊'
     }
 
@@ -430,8 +333,8 @@ export async function responderAgente(loja_id, numeroCliente, texto) {
 
     if (!loja) throw new Error('Loja não encontrada');
 
-    // 2. Chamar a lógica da Groq que já existe no whatsapp.js
-    const resultado = await chamarLLM(loja, numeroCliente, texto, 'texto', null);
+    // 2. Chamar a IA (substituindo chamarLLM)
+    const resultado = await chamarIA(loja, numeroCliente, texto, 'texto', null);
 
     return resultado.texto; // Retorna apenas o texto da resposta
   } catch (err) {

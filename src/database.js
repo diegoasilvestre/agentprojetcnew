@@ -146,37 +146,67 @@ function dividirTextoEmChunks(texto, tamanhoAprox = 1000) {
 
 async function gerarEmbedding(texto) {
   try {
-    const res = await gemini.models.embedContent({ model: 'gemini-embedding-2', contents: texto })
-    return res.embeddings?.[0]?.values || null
+    const key = process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY
+    if (!key) { console.error('[RAG] Nenhuma chave de API (GEMINI/GROQ) encontrada para embeddings.'); return null }
+    
+    // Garantindo que usamos a chave correta
+    const geminiEmbed = new GoogleGenAI({ apiKey: key })
+    const model = geminiEmbed.getGenerativeModel({ model: 'text-embedding-004' }) // text-embedding-004 é o sucessor estável que gera 768 ou 3072
+    
+    // Vamos usar gemini-embedding-2 que é o que combinamos (3072)
+    const res = await gemini.models.embedContent({ 
+      model: 'gemini-embedding-2', 
+      contents: texto 
+    })
+    const vec = res.embeddings?.[0]?.values || null
+    if (vec) console.log(`[RAG] Embedding gerado com sucesso. Dimensões: ${vec.length}`)
+    else console.warn('[RAG] Resposta de embedding vazia.')
+    return vec
   } catch (err) {
-    console.error('[Embedding Error]', err.message)
+    console.error('[RAG] Erro ao gerar embedding:', err.message)
     return null
   }
 }
 
 export async function salvarDocumentoRAG({ loja_id, tipo, titulo, conteudo, fonte }) {
-  console.log(`[RAG] Salvando: "${titulo}"`)
+  console.log(`[RAG][Ingestão] Iniciando: "${titulo}" para loja ${loja_id}`)
   const { data, error } = await db.from('rag_documentos').insert({
     loja_id, tipo, titulo, conteudo, fonte: fonte || 'manual', ativo: true
   }).select().single()
-  if (error) throw new Error(error.message)
+  if (error) { console.error('[RAG] Erro ao salvar documento:', error.message); throw new Error(error.message) }
 
   const chunks = dividirTextoEmChunks(conteudo)
+  console.log(`[RAG] Texto dividido em ${chunks.length} chunks. Processando...`)
+  
+  let sucessos = 0
   for (const chunk of chunks) {
     const embedding = await gerarEmbedding(chunk)
     if (embedding) {
-      await db.from('rag_chunks').insert({ documento_id: data.id, loja_id, conteudo: chunk, embedding })
+      const { error: errIns } = await db.from('rag_chunks').insert({ documento_id: data.id, loja_id, conteudo: chunk, embedding })
+      if (!errIns) sucessos++
+      else console.error('[RAG] Erro ao inserir chunk no banco:', errIns.message)
     }
   }
+  console.log(`[RAG] Concluído: ${sucessos}/${chunks.length} chunks salvos.`)
   return data
 }
 
 export async function buscarRAGRelevante(lojaId, pergunta) {
   if (!pergunta || pergunta.length < 3) return []
+  console.log(`[RAG][Busca] Procurando por: "${pergunta.substring(0, 50)}..."`)
+  
   const embedding = await gerarEmbedding(pergunta)
   if (!embedding) return []
-  const { data, error } = await db.rpc('match_rag_chunks', { query_embedding: embedding, match_threshold: 0.1, match_count: 5, p_loja_id: lojaId })
-  if (error) { console.error('[DB] match_rag_chunks:', error.message); return [] }
+  
+  const { data, error } = await db.rpc('match_rag_chunks', { 
+    query_embedding: embedding, 
+    match_threshold: 0.1, 
+    match_count: 5, 
+    p_loja_id: lojaId 
+  })
+  
+  if (error) { console.error('[RAG] Erro na busca (match_rag_chunks):', error.message); return [] }
+  console.log(`[RAG] Resultados encontrados: ${data?.length || 0}`)
   return data || []
 }
 

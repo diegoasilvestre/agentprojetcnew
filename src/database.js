@@ -234,8 +234,7 @@ export async function getStats(lojaId) {
     pedidosPendentes: pend.count || 0,
     totalProdutos: prod.count || 0,
   }
-
-// ── RAG DINÂMICO ─────────────────────────────
+}
 export async function getDadosParaRAG(waId) {
   const { data: loja, error: erroLoja } = await db
     .from('lojas')
@@ -246,13 +245,13 @@ export async function getDadosParaRAG(waId) {
   if (erroLoja || !loja) return null;
 
   const { data: produtos } = await db
-    .from('produtos')
+    .from('produtos_agente')
     .select('nome, descricao, preco, link')
     .eq('loja_id', loja.id);
 
   return { loja, produtos };
 }
-}
+
 // ── RAG DOCUMENTOS ─────────────────────────────
 
 export async function salvarDocumentoRAG({ loja_id, tipo, titulo, conteudo, fonte }) {

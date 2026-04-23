@@ -9,8 +9,10 @@ import jwt from 'jsonwebtoken'
 import jwksClient from 'jwks-rsa'
 import multer from 'multer'
 import fs from 'fs'
-import pdf from 'pdf-parse'
-import xlsx from 'xlsx'
+import { createRequire } from 'module'
+const require = createRequire(import.meta.url)
+const pdf = require('pdf-parse')
+const xlsx = require('xlsx')
 import { salvarDocumentoRAG } from './database.js'
 import axios from 'axios'
 import * as cheerio from 'cheerio'

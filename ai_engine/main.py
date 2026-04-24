@@ -6,8 +6,8 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 import os
 import json
 
-from . import database as db
-from .rag import router as rag_router
+import database as db
+from rag import router as rag_router
 
 app = FastAPI()
 app.include_router(rag_router)

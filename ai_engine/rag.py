@@ -1,8 +1,8 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from .scraper import scrape_url, extract_pdf, extract_xlsx
-from . import database as db
+from scraper import scrape_url, extract_pdf, extract_xlsx
+import database as db
 
 router = APIRouter()
 

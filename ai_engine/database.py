@@ -12,11 +12,11 @@ def get_loja(loja_id: str):
     return res.data[0] if res.data else None
 
 def get_produtos(loja_id: str):
-    res = sb.table("produtos_agente").select("*").eq("loja_id", loja_id).eq("ativo", True).execute()
+    res = sb.table("produtos").select("*").eq("loja_id", loja_id).eq("ativo", True).execute()
     return res.data
 
 def get_historico(loja_id: str, numero: str, limite: int = 20):
-    res = sb.table("conversas_agente").select("*").eq("loja_id", loja_id).eq("numero_cliente", numero).order("created_at", desc=True).limit(limite).execute()
+    res = sb.table("conversas").select("*").eq("loja_id", loja_id).eq("numero_cliente", numero).order("created_at", desc=True).limit(limite).execute()
     return list(reversed(res.data))
 
 def get_rag_docs(loja_id: str):
@@ -24,7 +24,7 @@ def get_rag_docs(loja_id: str):
     return res.data
 
 def salvar_mensagem(loja_id: str, numero_cliente: str, nome_cliente: str, role: str, content: str, tipo: str = "texto"):
-    sb.table("conversas_agente").insert({
+    sb.table("conversas").insert({
         "loja_id": loja_id,
         "numero_cliente": numero_cliente,
         "nome_cliente": nome_cliente,

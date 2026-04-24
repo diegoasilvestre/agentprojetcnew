@@ -297,14 +297,25 @@ async function loadClientes() {
   try {
     var lojas = await api.get('/admin/lojas'); var el = document.getElementById('clientesList')
     if (!lojas.length) { el.innerHTML = '<div class="empty-state"><p>Nenhum cliente cadastrado</p></div>'; return }
-    el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Nome</th><th>WA ID</th><th>Modelo LLM</th><th>Status</th><th>Acoes</th></tr></thead><tbody>' +
+    el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Nome</th><th>WA ID</th><th>Status</th><th>Ações</th></tr></thead><tbody>' +
       lojas.map(function (l) { 
-        var cfg = l.config || {};
-        var modelName = cfg.llm_model || l.llm_model || 'padrão';
-        return '<tr><td style="font-weight:600;color:var(--text-primary)">' + l.nome + '</td><td style="font-family:monospace;font-size:12px">' + (l.wa_id || '-') + '</td><td style="font-size:12px">' + modelName + '</td><td><span class="badge ' + (l.ativa ? 'badge-success' : 'badge-danger') + '">' + (l.ativa ? 'Ativo' : 'Inativo') + '</span></td><td><button class="btn btn-secondary btn-sm" onclick="editarLoja(\'' + l.id + '\')">✏️ Editar</button></td></tr>' 
+        return '<tr><td style="font-weight:600">' + l.nome + '</td><td style="font-family:monospace;font-size:12px">' + (l.wa_id || '-') + '</td>' +
+          '<td><span class="badge ' + (l.ativa ? 'badge-success' : 'badge-danger') + '">' + (l.ativa ? 'Ativo' : 'Inativo') + '</span></td>' +
+          '<td>' +
+          '<button class="btn btn-secondary btn-sm" onclick="editarLoja(\'' + l.id + '\')">✏️ Editar</button>' +
+          '<button class="btn btn-danger btn-sm" style="margin-left:8px" onclick="deletarLoja(\'' + l.id + '\')">🗑️ Excluir</button>' +
+          '</td></tr>' 
       }).join('') +
       '</tbody></table></div>'
   } catch (err) { document.getElementById('clientesList').innerHTML = errMsg(err) }
+}
+async function deletarLoja(id) {
+  if (!confirm('Deseja realmente excluir este cliente? Isso apagará todas as conversas e arquivos RAG.')) return
+  try {
+    await api.del('/admin/lojas/' + id)
+    toast('Cliente excluido!')
+    loadClientes(); populateLojaSelect()
+  } catch (err) { toast(err.message, 'error') }
 }
 function openModalNovaLoja() {
   openModal('<div class="modal-title">+ Novo Cliente</div>' +

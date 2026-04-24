@@ -90,6 +90,11 @@ app.get('/admin/lojas', async (_, res) => res.json(await listarLojas()))
 app.get('/admin/lojas/:id', async (req, res) => res.json(await getLojaPorId(req.params.id)))
 app.post('/admin/lojas', async (req, res) => res.status(201).json(await criarLoja(req.body)))
 app.patch('/admin/lojas/:id', async (req, res) => res.json(await atualizarLoja(req.params.id, req.body)))
+app.delete('/admin/lojas/:id', async (req, res) => {
+  const { error } = await db.from('lojas').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ erro: error.message })
+  res.json({ ok: true })
+})
 app.get('/admin/lojas/:id/stats', async (req, res) => res.json(await getStats(req.params.id)))
 
 // Produtos

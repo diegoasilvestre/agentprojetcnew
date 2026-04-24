@@ -72,7 +72,9 @@ async def chat(req: ChatRequest):
     if not loja:
         raise HTTPException(status_code=404, detail="Loja não encontrada")
     
-    if not loja.get("ativa", True) or not loja.get("bot_ativo", True):
+    # Verifica se a loja está ativa (aceita tanto 'ativa' quanto 'bot_ativo')
+    is_active = loja.get("ativa", True) and loja.get("bot_ativo", True)
+    if not is_active:
         return {"texto": "Bot inativo para esta loja.", "pedido": None}
 
     produtos = db.get_produtos(req.loja_id)

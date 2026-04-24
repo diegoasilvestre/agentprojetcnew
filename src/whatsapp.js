@@ -1,6 +1,6 @@
-/**
- * whatsapp.js — Motor Multi-Tenant Baileys
- * Cada loja → socket próprio + sessão em ./auth/session_{lojaId}
+﻿/**
+ * whatsapp.js â€” Motor Multi-Tenant Baileys
+ * Cada loja â†’ socket prÃ³prio + sessÃ£o em ./auth/session_{lojaId}
  */
 import makeWASocket, {
   useMultiFileAuthState,
@@ -21,7 +21,7 @@ const logger = pino({ level: 'silent' })
 const BOOT_TIME = Math.floor(Date.now() / 1000)
 const delay = (ms) => new Promise(r => setTimeout(r, ms))
 
-// ── Utils ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Utils â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function normalizarNumero(s = '') {
   return s.split('@')[0].split(':')[0].replace(/\D/g, '')
 }
@@ -60,7 +60,7 @@ async function chamarIA(loja, numeroCliente, mensagem, tipo, imgB64) {
   return await resp.json() // { texto, pedido }
 }
 
-// ── Instância por loja ────────────────────────────────────────────────────────
+// â”€â”€ InstÃ¢ncia por loja â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class WaInstance {
   constructor(lojaId) {
     this.lojaId = lojaId
@@ -123,7 +123,7 @@ class WaInstance {
     this.sock.ev.on('connection.update', async (upd) => {
       const { connection, lastDisconnect } = upd
 
-      // Pairing code — solicitar uma vez quando socket abrir
+      // Pairing code â€” solicitar uma vez quando socket abrir
       if (numero && !this._pairingSolicitado && !this.sock.authState?.creds?.registered) {
         this._pairingSolicitado = true
         try {
@@ -131,7 +131,7 @@ class WaInstance {
           const code = await this.sock.requestPairingCode(numero.replace(/\D/g, ''))
           this.pairingCode = code?.match(/.{1,4}/g)?.join('-') || code
           this.status = 'pairing_code'
-          console.log(`[WA][${this.lojaId}] 🔑 Pairing code: ${this.pairingCode}`)
+          console.log(`[WA][${this.lojaId}] ðŸ”‘ Pairing code: ${this.pairingCode}`)
         } catch (err) {
           console.error(`[WA][${this.lojaId}] Erro pairing:`, err.message)
           this.erro = err.message
@@ -145,7 +145,7 @@ class WaInstance {
         this.numero = normalizarNumero(this.sock.user?.id || '')
         this.pairingCode = null
         this.erro = null
-        console.log(`[WA][${this.lojaId}] ✅ Conectado! Número: ${this.numero}`)
+        console.log(`[WA][${this.lojaId}] âœ… Conectado! NÃºmero: ${this.numero}`)
       }
 
       if (connection === 'close') {
@@ -178,7 +178,7 @@ class WaInstance {
         if (this._dedup(msg.key.id)) continue
         if (!this._rate_ok()) continue
         const jid = msg.key.remoteJid
-        console.log(`[WA][${this.lojaId}] 📩 ${jid}`)
+        console.log(`[WA][${this.lojaId}] ðŸ“© ${jid}`)
         this._enfileirar(jid, () => this._processar(msg))
       }
     })
@@ -204,7 +204,7 @@ class WaInstance {
         if (buf) imgB64 = (await sharp(buf).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer()).toString('base64')
       } catch { }
     } else if (mc?.audioMessage || mc?.pttMessage) {
-      tipo = 'audio'; texto = '[O cliente enviou um áudio]'
+      tipo = 'audio'; texto = '[O cliente enviou um Ã¡udio]'
     } else if (mc?.stickerMessage || mc?.reactionMessage || mc?.protocolMessage) {
       return
     }
@@ -213,7 +213,7 @@ class WaInstance {
 
     const meuNumero = normalizarNumero(this.sock.user?.id || '')
     const loja = await getLojaPorWaId(meuNumero)
-    if (!loja) { console.warn(`[WA][${this.lojaId}] Loja não encontrada para ${meuNumero}`); return }
+    if (!loja) { console.warn(`[WA][${this.lojaId}] Loja nÃ£o encontrada para ${meuNumero}`); return }
 
     try { await this.sock.readMessages([msg.key]) } catch { }
     await delay(1200 + Math.random() * 2000)
@@ -227,7 +227,7 @@ class WaInstance {
       resposta = r.texto; pedido = r.pedido
     } catch (err) {
       console.error(`[WA][${this.lojaId}] AI Engine erro:`, err.message)
-      resposta = 'Oi! Tive uma instabilidade. Pode repetir? 😊'
+      resposta = 'Oi! Tive uma instabilidade. Pode repetir? ðŸ˜Š'
     }
 
     await salvarMensagem({ lojaId: loja.id, numeroCliente, nomeCliente, role: 'assistant', content: resposta, tipo: 'texto' })
@@ -245,11 +245,11 @@ class WaInstance {
     for (const bloco of dividirMensagem(resposta)) {
       await this.enviarTexto(jid, bloco)
     }
-    console.log(`[WA][${this.lojaId}] ✅ Resposta enviada a ${numeroCliente}`)
+    console.log(`[WA][${this.lojaId}] âœ… Resposta enviada a ${numeroCliente}`)
   }
 
   async enviarTexto(jid, texto) {
-    if (!this.sock) throw new Error('Socket não conectado')
+    if (!this.sock) throw new Error('Socket nÃ£o conectado')
     const t = Math.min(texto.length * 40 + Math.random() * 1500, 5000)
     await this.sock.sendPresenceUpdate('composing', jid)
     await delay(t)
@@ -261,14 +261,14 @@ class WaInstance {
     try { if (this.sock) { await this.sock.logout().catch(() => { }); this.sock = null } } catch { }
     if (deletarSessao) {
       const dir = path.join(process.cwd(), 'auth', `session_${this.lojaId}`)
-      if (fs.existsSync(dir)) { fs.rmSync(dir, { recursive: true, force: true }); console.log(`[WA] 🗑 Sessão deletada: ${dir}`) }
+      if (fs.existsSync(dir)) { fs.rmSync(dir, { recursive: true, force: true }); console.log(`[WA] ðŸ—‘ SessÃ£o deletada: ${dir}`) }
     }
     this.status = 'aguardando'; this.pairingCode = null; this.numero = null
     this.erro = null; this.tentativas = 0; this._pairingSolicitado = false
   }
 }
 
-// ── Manager Singleton ─────────────────────────────────────────────────────────
+// â”€â”€ Manager Singleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class Manager {
   constructor() { this._map = new Map() }
 
@@ -307,23 +307,23 @@ class Manager {
   }
 
 
-  /** Reconecta no boot todas as sessões salvas */
+  /** Reconecta no boot todas as sessÃµes salvas */
   async reconectarSessoes() {
     const base = path.join(process.cwd(), 'auth')
     if (!fs.existsSync(base)) return
     const dirs = fs.readdirSync(base).filter(d => d.startsWith('session_'))
-    if (!dirs.length) { console.log('[Manager] Nenhuma sessão salva.'); return }
-    console.log(`[Manager] Reconectando ${dirs.length} sessão(ões)...`)
+    if (!dirs.length) { console.log('[Manager] Nenhuma sessÃ£o salva.'); return }
+    console.log(`[Manager] Reconectando ${dirs.length} sessÃ£o(Ãµes)...`)
     for (const dir of dirs) {
       const lojaId = dir.replace('session_', '')
       this._getOrCreate(lojaId).conectar(null)
-        .catch(e => console.error(`[Manager] Reconexão ${lojaId}:`, e.message))
+        .catch(e => console.error(`[Manager] ReconexÃ£o ${lojaId}:`, e.message))
     }
   }
 }
 
 /**
- * responderAgente — Função usada pela rota /simulate para testar a IA
+ * responderAgente â€” FunÃ§Ã£o usada pela rota /simulate para testar a IA
  */
 export async function responderAgente(loja_id, numeroCliente, texto) {
   try {
@@ -331,7 +331,7 @@ export async function responderAgente(loja_id, numeroCliente, texto) {
     const { getLojaPorId } = await import('./database.js');
     const loja = await getLojaPorId(loja_id);
 
-    if (!loja) throw new Error('Loja não encontrada');
+    if (!loja) throw new Error('Loja nÃ£o encontrada');
 
     // 2. Chamar a IA (substituindo chamarLLM)
     const resultado = await chamarIA(loja, numeroCliente, texto, 'texto', null);
@@ -339,8 +339,9 @@ export async function responderAgente(loja_id, numeroCliente, texto) {
     return resultado.texto; // Retorna apenas o texto da resposta
   } catch (err) {
     console.error("[whatsapp.js] Erro em responderAgente:", err.message);
-    return "Erro ao processar simulação: " + err.message;
+    return "Erro ao processar simulaÃ§Ã£o: " + err.message;
   }
 }
 
 export const instanceManager = new Manager()
+

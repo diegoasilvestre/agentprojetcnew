@@ -97,7 +97,8 @@ async def chat(req: ChatRequest):
         messages.append(HumanMessage(content=req.mensagem))
 
     config = loja.get("config", {})
-    model_name = config.get("llm_model", "llama-3.3-70b-versatile")
+    # Força o uso do melhor modelo do Groq por padrão (conforme solicitado)
+    model_name = "llama-3.3-70b-versatile"
     temperature = config.get("llm_temperature", 0.7)
     
     try:

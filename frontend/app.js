@@ -93,11 +93,14 @@ async function renderAgente() {
       '<div class="form-group"><label class="form-label">Instrucoes Extras</label><textarea class="form-textarea" id="instrExtras" style="min-height:100px">' + (loja.instrucoes_extras || '') + '</textarea></div>' +
       '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><label class="form-label" style="margin:0">Bot Ativo</label><label class="toggle"><input type="checkbox" id="botAtivo"' + (loja.ativa ? ' checked' : '') + '><span class="toggle-slider"></span></label></div>' +
       '<button class="btn btn-primary" onclick="salvarAgente()">Salvar Configuracoes</button></div></div>' +
-      '<div><div class="card"><div class="card-title" style="margin-bottom:16px">Configuracao do LLM (Groq/Gemini)</div>' +
+      '<!-- Configuracao do LLM escondida por padrao -->' +
+      '<div style="display:none">' +
+      '<div class="card"><div class="card-title" style="margin-bottom:16px">Configuracao do LLM (Groq/Gemini)</div>' +
       '<div class="form-group"><label class="form-label">Modelo</label><select class="form-select" id="llmModel">' + GROQ_MODELS.map(function (m) { return '<option value="' + m + '"' + (m === model ? ' selected' : '') + '>' + m + '</option>' }).join('') + '</select></div>' +
       '<div class="form-group"><label class="form-label">Temperatura - <span class="range-value" id="tempVal">' + temp + '</span></label><input type="range" id="llmTemp" min="0" max="2" step="0.1" value="' + temp + '" oninput="document.getElementById(\'tempVal\').textContent=this.value"><p style="font-size:11px;color:var(--text-muted);margin-top:4px">0 = deterministico - 1 = balanceado - 2 = criativo</p></div>' +
       '<div class="form-group"><label class="form-label">Max Tokens - <span class="range-value" id="tokVal">' + maxTok + '</span></label><input type="range" id="llmMaxTokens" min="128" max="4096" step="64" value="' + maxTok + '" oninput="document.getElementById(\'tokVal\').textContent=this.value"></div>' +
       '<button class="btn btn-primary" onclick="salvarLLM()">Salvar LLM</button></div>' +
+      '</div>' +
       '<div class="card"><div class="card-title" style="margin-bottom:16px">Testar Agente</div>' +
       '<div class="form-group"><label class="form-label">Numero (simulado)</label><input class="form-input" id="simPhone" value="5511999999999"></div>' +
       '<div class="form-group"><label class="form-label">Mensagem</label><input class="form-input" id="simText" placeholder="Digite uma mensagem de teste..."></div>' +

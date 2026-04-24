@@ -1,4 +1,4 @@
-﻿import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
 import { GoogleGenAI } from '@google/genai'
 import 'dotenv/config'
 
@@ -169,45 +169,12 @@ async function gerarEmbedding(texto) {
 }
 
 export async function salvarDocumentoRAG({ loja_id, tipo, titulo, conteudo, fonte }) {
-  console.log(`[RAG][IngestÃ£o] Iniciando: "${titulo}" para loja ${loja_id}`)
+  console.log(`[RAG][Ingestão] Salvando: "${titulo}" para loja ${loja_id}`)
   const { data, error } = await db.from('rag_documentos').insert({
     loja_id, tipo, titulo, conteudo, fonte: fonte || 'manual', ativo: true
   }).select().single()
   if (error) { console.error('[RAG] Erro ao salvar documento:', error.message); throw new Error(error.message) }
-
-  const chunks = dividirTextoEmChunks(conteudo)
-  console.log(`[RAG] Texto dividido em ${chunks.length} chunks. Processando...`)
-  
-  let sucessos = 0
-  for (const chunk of chunks) {
-    const embedding = await gerarEmbedding(chunk)
-    if (embedding) {
-      const { error: errIns } = await db.from('rag_chunks').insert({ documento_id: data.id, loja_id, conteudo: chunk, embedding })
-      if (!errIns) sucessos++
-      else console.error('[RAG] Erro ao inserir chunk no banco:', errIns.message)
-    }
-  }
-  console.log(`[RAG] ConcluÃ­do: ${sucessos}/${chunks.length} chunks salvos.`)
   return data
-}
-
-export async function buscarRAGRelevante(lojaId, pergunta) {
-  if (!pergunta || pergunta.length < 3) return []
-  console.log(`[RAG][Busca] Procurando por: "${pergunta.substring(0, 50)}..."`)
-  
-  const embedding = await gerarEmbedding(pergunta)
-  if (!embedding) return []
-  
-  const { data, error } = await db.rpc('match_rag_chunks', { 
-    query_embedding: embedding, 
-    match_threshold: 0.1, 
-    match_count: 5, 
-    p_loja_id: lojaId 
-  })
-  
-  if (error) { console.error('[RAG] Erro na busca (match_rag_chunks):', error.message); return [] }
-  console.log(`[RAG] Resultados encontrados: ${data?.length || 0}`)
-  return data || []
 }
 
 export async function listarDocumentosRAG(loja_id) {

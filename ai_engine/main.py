@@ -2,7 +2,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from langchain_groq import ChatGroq
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 import os
 import json
@@ -79,7 +78,7 @@ async def chat(req: ChatRequest):
             print(f"[DEBUG-PYTHON] Loja {req.loja_id} não encontrada")
             raise HTTPException(status_code=404, detail="Loja não encontrada")
         
-        is_active = loja.get("ativa", True) and loja.get("bot_ativo", True)
+        is_active = loja.get("ativo", True)
         if not is_active:
             print(f"[DEBUG-PYTHON] Bot inativo para {loja.get('nome')}")
             return {"texto": "Bot inativo.", "pedido": None}
@@ -90,9 +89,16 @@ async def chat(req: ChatRequest):
 
         system_prompt = build_system(loja, produtos, rag_docs)
         messages = [SystemMessage(content=system_prompt)]
-        for m in historico:
-            if m.get("role") == "user": messages.append(HumanMessage(content=m["content"]))
-            else: messages.append(AIMessage(content=m["content"]))
+        
+        # Adiciona histórico com segurança
+        if historico:
+            for m in historico:
+                content = m.get("content", "")
+                if not content: continue
+                if m.get("role") == "user": 
+                    messages.append(HumanMessage(content=content))
+                else: 
+                    messages.append(AIMessage(content=content))
         
         if req.tipo == "imagem" and req.img_b64:
             messages.append(HumanMessage(content=[

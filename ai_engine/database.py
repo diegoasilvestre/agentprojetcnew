@@ -16,7 +16,7 @@ def get_produtos(loja_id: str):
     return res.data
 
 def get_historico(loja_id: str, numero: str, limite: int = 20):
-    res = sb.table("conversas").select("*").eq("loja_id", loja_id).eq("numero_cliente", numero).order("created_at", desc=True).limit(limite).execute()
+    res = sb.table("conversas").select("*").eq("loja_id", loja_id).eq("numero_cliente", numero).order("criado_em", desc=True).limit(limite).execute()
     return list(reversed(res.data))
 
 def get_rag_docs(loja_id: str):

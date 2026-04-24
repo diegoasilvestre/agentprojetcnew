@@ -1,11 +1,11 @@
-import { createClient } from '@supabase/supabase-js'
+﻿import { createClient } from '@supabase/supabase-js'
 import { GoogleGenAI } from '@google/genai'
 import 'dotenv/config'
 
 const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
 
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-  console.error('❌ SUPABASE_URL ou SUPABASE_SERVICE_KEY não configurados')
+  console.error('âŒ SUPABASE_URL ou SUPABASE_SERVICE_KEY nÃ£o configurados')
   process.exit(1)
 }
 
@@ -52,34 +52,34 @@ export async function atualizarLoja(id, patch) {
 }
 
 export async function getProdutosDaLoja(lojaId) {
-  const { data, error } = await db.from('produtos_agente').select('*').eq('loja_id', lojaId).eq('ativo', true).order('nome')
+  const { data, error } = await db.from('produtos').select('*').eq('loja_id', lojaId).eq('ativo', true).order('nome')
   return data || []
 }
 
 export async function criarProduto(payload) {
-  const { data, error } = await db.from('produtos_agente').insert({ ...payload, ativo: true }).select().single()
+  const { data, error } = await db.from('produtos').insert({ ...payload, ativo: true }).select().single()
   if (error) throw new Error(error.message)
   return data
 }
 
 export async function atualizarProduto(id, patch) {
-  const { data, error } = await db.from('produtos_agente').update(patch).eq('id', id).select().single()
+  const { data, error } = await db.from('produtos').update(patch).eq('id', id).select().single()
   if (error) throw new Error(error.message)
   return data
 }
 
 export async function getHistorico(lojaId, numeroCliente, limite = 20) {
-  const { data, error } = await db.from('conversas_agente').select('role, content').eq('loja_id', lojaId).eq('numero_cliente', numeroCliente).order('created_at', { ascending: false }).limit(limite)
+  const { data, error } = await db.from('conversas').select('role, content').eq('loja_id', lojaId).eq('numero_cliente', numeroCliente).order('created_at', { ascending: false }).limit(limite)
   if (error) return []
   return (data || []).reverse()
 }
 
 export async function salvarMensagem({ lojaId, numeroCliente, nomeCliente, role, content, tipo = 'texto' }) {
-  await db.from('conversas_agente').insert({ loja_id: lojaId, numero_cliente: numeroCliente, nome_cliente: nomeCliente, role, content, tipo })
+  await db.from('conversas').insert({ loja_id: lojaId, numero_cliente: numeroCliente, nome_cliente: nomeCliente, role, content, tipo })
 }
 
 export async function listarContatos(lojaId) {
-  const { data } = await db.from('conversas_agente').select('numero_cliente, nome_cliente, content, created_at, role').eq('loja_id', lojaId).order('created_at', { ascending: false }).limit(500)
+  const { data } = await db.from('conversas').select('numero_cliente, nome_cliente, content, created_at, role').eq('loja_id', lojaId).order('created_at', { ascending: false }).limit(500)
   const map = new Map()
   for (const row of data || []) {
     if (!map.has(row.numero_cliente)) {
@@ -90,35 +90,35 @@ export async function listarContatos(lojaId) {
 }
 
 export async function getConversa(lojaId, numero, limite = 100) {
-  const { data } = await db.from('conversas_agente').select('role, content, tipo, created_at').eq('loja_id', lojaId).eq('numero_cliente', numero).order('created_at', { ascending: true }).limit(limite)
+  const { data } = await db.from('conversas').select('role, content, tipo, created_at').eq('loja_id', lojaId).eq('numero_cliente', numero).order('created_at', { ascending: true }).limit(limite)
   return data || []
 }
 
 export async function deletarConversa(lojaId, numero) {
-  await db.from('conversas_agente').delete().eq('loja_id', lojaId).eq('numero_cliente', numero)
+  await db.from('conversas').delete().eq('loja_id', lojaId).eq('numero_cliente', numero)
 }
 
 export async function contagemMensagensHoje(lojaId) {
   const desde = new Date(Date.now() - 86400000).toISOString()
-  const { count } = await db.from('conversas_agente').select('*', { count: 'exact', head: true }).eq('loja_id', lojaId).eq('role', 'user').gte('created_at', desde)
+  const { count } = await db.from('conversas').select('*', { count: 'exact', head: true }).eq('loja_id', lojaId).eq('role', 'user').gte('created_at', desde)
   return count || 0
 }
 
 export async function criarPedido(payload) {
-  const { data, error } = await db.from('pedidos_agente').insert(payload).select().single()
+  const { data, error } = await db.from('pedidos').insert(payload).select().single()
   if (error) throw new Error(error.message)
   return data
 }
 
 export async function listarPedidos(lojaId, status = null) {
-  let q = db.from('pedidos_agente').select('*').eq('loja_id', lojaId).order('created_at', { ascending: false }).limit(100)
+  let q = db.from('pedidos').select('*').eq('loja_id', lojaId).order('created_at', { ascending: false }).limit(100)
   if (status) q = q.eq('status', status)
   const { data } = await q
   return data || []
 }
 
 export async function atualizarPedido(id, patch) {
-  const { data, error } = await db.from('pedidos_agente').update(patch).eq('id', id).select().single()
+  const { data, error } = await db.from('pedidos').update(patch).eq('id', id).select().single()
   if (error) throw new Error(error.message)
   return data
 }
@@ -126,13 +126,13 @@ export async function atualizarPedido(id, patch) {
 export async function getStats(lojaId) {
   const [conv, pend, docs] = await Promise.all([
     contagemMensagensHoje(lojaId),
-    db.from('pedidos_agente').select('id', { count: 'exact', head: true }).eq('loja_id', lojaId).eq('status', 'Pendente'),
+    db.from('pedidos').select('id', { count: 'exact', head: true }).eq('loja_id', lojaId).eq('status', 'Pendente'),
     db.from('rag_documentos').select('id', { count: 'exact', head: true }).eq('loja_id', lojaId).eq('ativo', true),
   ])
   return { conversasHoje: conv, pedidosPendentes: pend.count || 0, totalDocs: docs.count || 0 }
 }
 
-// ── RAG DOCUMENTOS ────────────────────────────────────────────────────────────
+// â”€â”€ RAG DOCUMENTOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function dividirTextoEmChunks(texto, tamanhoAprox = 1000) {
   const textoLimpo = texto.replace(/\s+/g, ' ').trim()
@@ -151,15 +151,15 @@ async function gerarEmbedding(texto) {
     
     // Garantindo que usamos a chave correta
     const geminiEmbed = new GoogleGenAI({ apiKey: key })
-    const model = geminiEmbed.getGenerativeModel({ model: 'text-embedding-004' }) // text-embedding-004 é o sucessor estável que gera 768 ou 3072
+    const model = geminiEmbed.getGenerativeModel({ model: 'text-embedding-004' }) // text-embedding-004 Ã© o sucessor estÃ¡vel que gera 768 ou 3072
     
-    // Vamos usar gemini-embedding-2 que é o que combinamos (3072)
+    // Vamos usar gemini-embedding-2 que Ã© o que combinamos (3072)
     const res = await gemini.models.embedContent({ 
       model: 'gemini-embedding-2', 
       contents: texto 
     })
     const vec = res.embeddings?.[0]?.values || null
-    if (vec) console.log(`[RAG] Embedding gerado com sucesso. Dimensões: ${vec.length}`)
+    if (vec) console.log(`[RAG] Embedding gerado com sucesso. DimensÃµes: ${vec.length}`)
     else console.warn('[RAG] Resposta de embedding vazia.')
     return vec
   } catch (err) {
@@ -169,7 +169,7 @@ async function gerarEmbedding(texto) {
 }
 
 export async function salvarDocumentoRAG({ loja_id, tipo, titulo, conteudo, fonte }) {
-  console.log(`[RAG][Ingestão] Iniciando: "${titulo}" para loja ${loja_id}`)
+  console.log(`[RAG][IngestÃ£o] Iniciando: "${titulo}" para loja ${loja_id}`)
   const { data, error } = await db.from('rag_documentos').insert({
     loja_id, tipo, titulo, conteudo, fonte: fonte || 'manual', ativo: true
   }).select().single()
@@ -187,7 +187,7 @@ export async function salvarDocumentoRAG({ loja_id, tipo, titulo, conteudo, font
       else console.error('[RAG] Erro ao inserir chunk no banco:', errIns.message)
     }
   }
-  console.log(`[RAG] Concluído: ${sucessos}/${chunks.length} chunks salvos.`)
+  console.log(`[RAG] ConcluÃ­do: ${sucessos}/${chunks.length} chunks salvos.`)
   return data
 }
 

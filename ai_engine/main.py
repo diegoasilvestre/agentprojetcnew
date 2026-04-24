@@ -2,9 +2,11 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 import os
 import json
+import logging
 
 import database as db
 from rag import router as rag_router
@@ -97,15 +99,25 @@ async def chat(req: ChatRequest):
     temperature = config.get("llm_temperature", 0.7)
     
     try:
-        chat_groq = ChatGroq(
-            model_name=model_name,
-            temperature=temperature,
-            api_key=os.environ.get("GROQ_API_KEY", "")
-        )
-        response = chat_groq.invoke(messages)
+        if "gemini" in model_name.lower():
+            # Motor Google
+            llm = ChatGoogleGenerativeAI(
+                model=model_name,
+                temperature=temperature,
+                google_api_key=os.environ.get("GEMINI_API_KEY", "")
+            )
+        else:
+            # Motor Groq
+            llm = ChatGroq(
+                model_name=model_name,
+                temperature=temperature,
+                api_key=os.environ.get("GROQ_API_KEY", "")
+            )
+            
+        response = llm.invoke(messages)
         content = response.content
     except Exception as e:
-        print(f"Erro na IA: {e}")
+        print(f"Erro na IA ({model_name}): {e}")
         content = "Desculpe, tive um problema técnico momentâneo. Pode tentar novamente? 😊"
 
     texto, pedido = extrair_pedido(content)

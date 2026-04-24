@@ -11,3 +11,4 @@ openpyxl
 python-multipart
 pydantic
 python-dotenv
+langchain-google-genai

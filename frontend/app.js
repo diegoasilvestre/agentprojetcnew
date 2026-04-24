@@ -1,5 +1,5 @@
 // Mr RobotyBR — Admin Panel SPA
-const API = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://chatbot20agent-agentprojetcnew.up.railway.app'
+const API = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://agentprojetcnew-production.up.railway.app'
 const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'gemma2-9b-it', 'gemini-2.5-flash', 'gemini-2.0-flash']
 let state = { lojas: [], lojaId: null, loja: null, page: 'dashboard' }
 let waPolling = null
@@ -120,7 +120,7 @@ async function salvarLLM() {
     cfg.llm_temperature = parseFloat(document.getElementById('llmTemp').value);
     cfg.llm_max_tokens = parseInt(document.getElementById('llmMaxTokens').value);
     await api.patch('/admin/lojas/' + state.lojaId, { config: cfg });
-    toast('Configuracao LLM salva!') 
+    toast('Configuracao LLM salva!')
   } catch (err) { toast(err.message, 'error') }
 }
 async function testarAgente() {
@@ -301,13 +301,13 @@ async function loadClientes() {
     var lojas = await api.get('/admin/lojas'); var el = document.getElementById('clientesList')
     if (!lojas.length) { el.innerHTML = '<div class="empty-state"><p>Nenhum cliente cadastrado</p></div>'; return }
     el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Nome</th><th>WA ID</th><th>Status</th><th>Ações</th></tr></thead><tbody>' +
-      lojas.map(function (l) { 
+      lojas.map(function (l) {
         return '<tr><td style="font-weight:600">' + l.nome + '</td><td style="font-family:monospace;font-size:12px">' + (l.wa_id || '-') + '</td>' +
           '<td><span class="badge ' + (l.ativa ? 'badge-success' : 'badge-danger') + '">' + (l.ativa ? 'Ativo' : 'Inativo') + '</span></td>' +
           '<td>' +
           '<button class="btn btn-secondary btn-sm" onclick="editarLoja(\'' + l.id + '\')">✏️ Editar</button>' +
           '<button class="btn btn-danger btn-sm" style="margin-left:8px" onclick="deletarLoja(\'' + l.id + '\')">🗑️ Excluir</button>' +
-          '</td></tr>' 
+          '</td></tr>'
       }).join('') +
       '</tbody></table></div>'
   } catch (err) { document.getElementById('clientesList').innerHTML = errMsg(err) }

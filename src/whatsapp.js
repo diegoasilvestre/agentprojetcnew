@@ -1,4 +1,4 @@
-﻿/**
+/**
  * whatsapp.js â€” Motor Multi-Tenant Baileys
  * Cada loja â†’ socket prÃ³prio + sessÃ£o em ./auth/session_{lojaId}
  */
@@ -105,11 +105,25 @@ class WaInstance {
   }
 
   async conectar(numero = null) {
+    // 1. Se já existe um socket, encerra ele completamente antes de começar
+    if (this.sock) {
+      console.log(`[WA][${this.lojaId}] Fechando conexão anterior para novo pareamento...`)
+      try {
+        this.sock.ev.removeAllListeners()
+        this.sock.terminate()
+      } catch (e) {}
+      this.sock = null
+    }
+
     const { state, saveCreds } = await useMultiFileAuthState(authDir(this.lojaId))
     let version = [2, 3000, 1015901307]
     try { const r = await fetchLatestBaileysVersion(); if (r?.version) version = r.version } catch { }
 
     this._pairingSolicitado = false
+    this.pairingCode = null
+    this.erro = null
+    this.status = 'conectando'
+
     this.sock = makeWASocket({
       version, auth: state, logger,
       printQRInTerminal: false,

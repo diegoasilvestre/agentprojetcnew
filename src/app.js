@@ -40,6 +40,7 @@ const upload = multer({ dest: 'uploads/' })
 app.use(cors({ origin: '*' }))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+app.use(express.static('frontend'))
 
 // ── Auth Middleware ──────────────────────────────────────────────────────────
 const jwks = jwksClient({ jwksUri: `${process.env.SUPABASE_URL}/auth/v1/keys` })
@@ -54,8 +55,6 @@ function auth(req, res, next) {
 }
 
 // ── Rotas ────────────────────────────────────────────────────────────────────
-app.get('/', (_, res) => res.json({ status: 'online', api: 'Agents Intelligence v3' }))
-
 app.get('/status', (_, res) => {
   res.json({
     servidor: 'online',
